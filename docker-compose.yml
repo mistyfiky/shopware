@@ -1,0 +1,63 @@
+version: "3.8"
+
+x-cli-defaults: &cli-defaults
+  build:
+    context: .
+    target: cli
+
+x-sw-volumes: &sw-volumes
+  volumes:
+    - "./.run/app/.env:/app/.env"
+    - "./.run/app/config/jwt:/app/config/jwt"
+
+services:
+
+  db:
+    environment:
+      MYSQL_ROOT_PASSWORD: "root"
+      MYSQL_USER: "user"
+      MYSQL_PASSWORD: "password"
+      MYSQL_DATABASE: "shopware"
+    image: "mariadb:latest"
+    volumes:
+      - "./.run/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d"
+      - "dbdata:/var/lib/mysql"
+
+  sw:
+    <<: *sw-volumes
+    build:
+      context: .
+      target: sw
+    depends_on:
+      - db
+
+  web:
+    build:
+      context: .
+      target: web
+    depends_on:
+      - sw
+    environment:
+      NGINX_FASTCGI_PASS: "sw:9000"
+    ports:
+      - "8000:80"
+
+  cli:
+    <<: *cli-defaults
+    <<: *sw-volumes
+    profiles: [ "cli", "tools" ]
+
+  system-setup:
+    <<: *cli-defaults
+    <<: *sw-volumes
+    command: "bin/wait-for-it.sh -h db -p 3306 -- bin/console -n system:setup --database-url mysql://user:password@db:3306/shopware --generate-jwt-keys -f"
+    profiles: [ "system-setup", "tools" ]
+
+  system-install:
+    <<: *cli-defaults
+    <<: *sw-volumes
+    command: "bin/wait-for-it.sh -h db -p 3306 -- bin/console -n system:install --create-database --skip-jwt-keys-generation --basic-setup -f"
+    profiles: [ "system-install", "tools" ]
+
+volumes:
+  dbdata:
