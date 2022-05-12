@@ -1,63 +1,145 @@
 version: "3.8"
 
+x-platform-profile: &platform-profile
+  profiles: [ "platform" ]
+
+x-tasks-profile: &tasks-profile
+  profiles: [ "tasks" ]
+
+x-tools-profile: &tools-profile
+  profiles: [ "tools" ]
+
+x-sw-defaults: &sw-defaults
+  depends_on:
+    session_kv:
+        condition: service_started
+    cache_kv:
+        condition: service_started
+    db:
+        condition: service_started
+    s3:
+        condition: service_started
+    mq:
+        condition: service_started
+  environment:
+    REDIS_SESSION_DSN: "tcp://session_kv:6379"
+    REDIS_CACHE_DSN: "redis://cache_kv:6379"
+    RABBITMQ_DSN: "amqp://user:password@mq:5672/%2F"
+    S3_URL: "http://localhost:9000"
+    S3_BUCKET: "shopware"
+    S3_REGION: "local"
+    S3_ENDPOINT: "http://s3:9000"
+    S3_ACCESS_KEY: "user"
+    S3_SECRET_KEY: "password"
+    APP_ENV: "dev"
+    APP_URL: "http://localhost:8000"
+    DATABASE_URL: "mysql://user:password@db:3306/shopware"
+    SHOPWARE_ES_HOSTS: "elasticsearch:9200"
+    MAILER_URL: "native://default"
+    APP_SECRET: "def0000038180dd6c4c4f8dde634d596f339cfc983efba7c00ecc69d7c17212a82802f8efc96aa655fde68771b809f364d2ac9f34ee16f71aa4b40fdf13000b8edcfa281"
+    INSTANCE_ID: "OZv3IMXVJkrNdXsoyBGYKRcvyaMlYCCh"
+  volumes:
+    - "jwtdata:/app/config/jwt"
+
 x-cli-defaults: &cli-defaults
   build:
     context: .
     target: cli
 
-x-sw-volumes: &sw-volumes
-  volumes:
-    - "./.run/app/.env:/app/.env"
-    - "./.run/app/config/jwt:/app/config/jwt"
-
 services:
+
+  session_kv:
+    image: "redis:7.0.0"
+    volumes:
+      - "sessionkvdata:/data"
+
+  cache_kv:
+    image: "redis:7.0.0"
+    volumes:
+      - "cachekvdata:/data"
 
   db:
     environment:
-      MYSQL_ROOT_PASSWORD: "root"
+      MYSQL_ROOT_PASSWORD: "password"
       MYSQL_USER: "user"
       MYSQL_PASSWORD: "password"
       MYSQL_DATABASE: "shopware"
-    image: "mariadb:latest"
+    image: "mysql:8.0.29"
     volumes:
-      - "./.run/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d"
+      - "./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d"
       - "dbdata:/var/lib/mysql"
 
+  mq:
+    environment:
+      RABBITMQ_DEFAULT_USER: "user"
+      RABBITMQ_DEFAULT_PASS: "password"
+    image: "rabbitmq:3.10.0-management"
+    ports:
+      - "15672:15672"
+    volumes:
+      - "mqdata:/var/lib/rabbitmq"
+
+  s3:
+    environment:
+      MINIO_ROOT_USER: "user"
+      MINIO_ROOT_PASSWORD: "password"
+      MINIO_DEFAULT_BUCKETS: "shopware:public"
+    image: "bitnami/minio:2022.5.8"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - "s3data:/data"
+
   sw:
-    <<: *sw-volumes
+    <<: *platform-profile
+    <<: *sw-defaults
     build:
       context: .
       target: sw
-    depends_on:
-      - db
 
   web:
+    <<: *platform-profile
     build:
       context: .
       target: web
     depends_on:
-      - sw
+      sw:
+        condition: service_started
     environment:
       NGINX_FASTCGI_PASS: "sw:9000"
     ports:
       - "8000:80"
 
-  cli:
+  consumer:
+    <<: *platform-profile
+    <<: *sw-defaults
     <<: *cli-defaults
-    <<: *sw-volumes
-    profiles: [ "cli", "tools" ]
+    command: "bin/console -n messenger:consume default --time-limit=60 --memory-limit=128M"
+    restart: unless-stopped
 
-  system-setup:
+  task-runner:
+    <<: *platform-profile
+    <<: *sw-defaults
     <<: *cli-defaults
-    <<: *sw-volumes
-    command: "bin/wait-for-it.sh -h db -p 3306 -- bin/console -n system:setup --database-url mysql://user:password@db:3306/shopware --generate-jwt-keys -f"
-    profiles: [ "system-setup", "tools" ]
+    command: "bin/console -n scheduled-task:run --time-limit=60 --memory-limit=128M"
+    restart: unless-stopped
 
   system-install:
+    <<: *tasks-profile
+    <<: *sw-defaults
     <<: *cli-defaults
-    <<: *sw-volumes
-    command: "bin/wait-for-it.sh -h db -p 3306 -- bin/console -n system:install --create-database --skip-jwt-keys-generation --basic-setup -f"
-    profiles: [ "system-install", "tools" ]
+    command: "bin/wait-for-it.sh -t 30 -h db -p 3306 -- bin/console -n system:install --create-database -f"
+
+  cli:
+    <<: *tools-profile
+    <<: *sw-defaults
+    <<: *cli-defaults
 
 volumes:
   dbdata:
+  sessionkvdata:
+  cachekvdata:
+  mqdata:
+  s3data:
+  jwtdata:

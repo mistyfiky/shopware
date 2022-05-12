@@ -1,0 +1,5 @@
+enqueue:
+  rabbitmq:
+    transport:
+      dsn: "%env(resolve:RABBITMQ_DSN)%?connection_timeout=1000&heartbeat=100"
+    client: ~

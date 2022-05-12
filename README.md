@@ -1,7 +1,7 @@
-# mistyfiky's shopware
+# uber shopware
 
 ## development
 
 ```shell
-./run.sh
+make
 ```
