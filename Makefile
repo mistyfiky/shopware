@@ -15,7 +15,7 @@ build:
 	docker compose --profile platform --profile tasks --profile tools build
 .PHONY: build
 
-run:
+up:
 	docker compose --profile platform up -d
 	@echo "http://localhost:8000/admin"
 .PHONY: run
@@ -36,7 +36,7 @@ system-install:
 	docker compose run --rm system-install
 .PHONY: system-install
 
-init: system-install run
+init: system-install up
 .PHONY: init
 
 reinit: build down init
@@ -57,3 +57,6 @@ docker-entrypoint-initdb.d/_schema.sql:
 docker-entrypoint-initdb.d/dump.sql:
 	[ ! -f $@ ] || mv $@ $@.bak
 	docker compose exec db mysqldump -uroot -ppassword shopware >$@
+
+docker-compose.phpstorm.yml:
+	docker compose --profile platform config >$@

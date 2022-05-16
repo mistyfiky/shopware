@@ -11,21 +11,17 @@ x-tools-profile: &tools-profile
 
 x-sw-defaults: &sw-defaults
   depends_on:
-    session_kv:
-        condition: service_started
-    cache_kv:
-        condition: service_started
-    db:
-        condition: service_started
-    s3:
-        condition: service_started
-    mq:
-        condition: service_started
+    - kv
+    - db
+    - s3
+    - mq
   environment:
-    REDIS_SESSION_DSN: "tcp://session_kv:6379"
-    REDIS_CACHE_DSN: "redis://cache_kv:6379"
+    REDIS_SESSION_DSN: "tcp://kv:6379/1"
+    REDIS_CACHE_DSN: "redis://kv:6379/2"
+    REDIS_LOCK_DSN: "redis://kv:6379/3"
+    REDIS_NUMBER_DSN: "redis://kv:6379/4"
     RABBITMQ_DSN: "amqp://user:password@mq:5672/%2F"
-    S3_URL: "http://localhost:9000"
+    S3_URL: "http://localhost:9000/shopware"
     S3_BUCKET: "shopware"
     S3_REGION: "local"
     S3_ENDPOINT: "http://s3:9000"
@@ -48,15 +44,10 @@ x-cli-defaults: &cli-defaults
 
 services:
 
-  session_kv:
+  kv:
     image: "redis:7.0.0"
     volumes:
-      - "sessionkvdata:/data"
-
-  cache_kv:
-    image: "redis:7.0.0"
-    volumes:
-      - "cachekvdata:/data"
+      - "kvdata:/data"
 
   db:
     environment:
@@ -104,8 +95,7 @@ services:
       context: .
       target: web
     depends_on:
-      sw:
-        condition: service_started
+      - sw
     environment:
       NGINX_FASTCGI_PASS: "sw:9000"
     ports:
@@ -137,9 +127,8 @@ services:
     <<: *cli-defaults
 
 volumes:
+  kvdata:
   dbdata:
-  sessionkvdata:
-  cachekvdata:
   mqdata:
   s3data:
   jwtdata:

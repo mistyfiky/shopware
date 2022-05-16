@@ -52,7 +52,11 @@ RUN composer require --no-install --no-scripts enqueue/amqp-bunny
 # FIXME bin/build.sh
 RUN composer install --no-interaction --optimize-autoloader --no-suggest
 RUN composer install -d vendor/shopware/recovery --no-interaction --optimize-autoloader --no-suggest
-#RUN bin/build-administration.sh
+ENV SHOPWARE_SKIP_BUNDLE_DUMP=1 \
+    SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS=1 \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1
+# check
+RUN bin/build-administration.sh
 
 
 FROM base as sw
@@ -71,7 +75,8 @@ ENV SHOPWARE_ES_ENABLED="0" \
     SHOPWARE_HTTP_DEFAULT_TTL="7200" \
     SHOPWARE_CDN_STRATEGY_DEFAULT="id" \
     BLUE_GREEN_DEPLOYMENT="0" \
-    COMPOSER_HOME="/app/var/cache/composer"
+    COMPOSER_HOME="/app/var/cache/composer" \
+    DISABLE_EXTENSIONS=1
 
 
 FROM sw as cli
