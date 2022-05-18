@@ -57,7 +57,7 @@ services:
       MYSQL_DATABASE: "shopware"
     image: "mysql:8.0.29"
     volumes:
-      - "./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d"
+      - "./initdb.d:/docker-entrypoint-initdb.d"
       - "dbdata:/var/lib/mysql"
 
   mq:
@@ -88,6 +88,12 @@ services:
     build:
       context: .
       target: sw
+
+  mailhog:
+    <<: *platform-profile
+    image: "mailhog/mailhog:latest"
+    ports:
+      - "8025:8025"
 
   web:
     <<: *platform-profile

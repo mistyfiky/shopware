@@ -1,14 +1,28 @@
 SHELL = /bin/bash
 .SHELLFLAGS = -c -e
 .ONESHELL:
-.DEFAULT_GOAL := init
+.DEFAULT_GOAL := help
+
+help:
+	@>&2 printf 'commands:\n'
+	@>&2 printf '\tTODO\n'
+	@>&2 printf 'urls:\n'
+	@>&2 printf '%20s %-28s%s\n' \
+	 'storefront' 'http://localhost:8000' '- : -' \
+	 'storefront-watch' 'http://localhost:????' '- : -' \
+	 'administration' 'http://localhost:8000/admin' 'admin : password' \
+	 'administration-watch' 'http://localhost:3000' 'admin : password' \
+	 'minio' 'http://localhost:9001' 'user : password' \
+	 'rabbitmq' 'http://localhost:15672' 'user : password' \
+	 'mailhog' 'http://localhost:8025' '- : -'
+.PHONY: help
 
 clean:
 	rm -fr .app
 .PHONY: clean
 
 purge:
-	rm -f docker-entrypoint-initdb.d/dump.sql
+	rm -f initdb.d/dump.sql
 .PHONY: purge
 
 build:
@@ -17,7 +31,6 @@ build:
 
 up:
 	docker compose --profile platform up -d
-	@echo "http://localhost:8000/admin"
 .PHONY: run
 
 stop:
@@ -51,10 +64,10 @@ cli:
 	docker cp "$$id":/app $@
 	docker stop "$$id"
 
-docker-entrypoint-initdb.d/_schema.sql:
+initdb.d/_schema.sql:
 	wget -O $@ https://raw.githubusercontent.com/shopware/core/v6.4.11.1/schema.sql
 
-docker-entrypoint-initdb.d/dump.sql:
+initdb.d/dump.sql:
 	[ ! -f $@ ] || mv $@ $@.bak
 	docker compose exec db mysqldump -uroot -ppassword shopware >$@
 

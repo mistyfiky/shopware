@@ -1,2 +1,2 @@
 /.app/
-/docker-entrypoint-initdb.d/dump.sql
+/initdb.d/dump.sql
