@@ -7,14 +7,17 @@ ARG NODE_VERSION=16.15.0
 ARG NGINX_VERSION=1.21.6
 ARG USER_ID=1000
 ARG GROUP_ID=1000
+ARG APP_ENV=prod
 FROM mlocati/php-extension-installer:${PHP_EXT_INSTALLER_VERSION} as php-ext-installer
 FROM composer:${COMPOSER_VERSION} as composer
+
 
 FROM bash as production
 WORKDIR /app
 ARG SHOPWARE_ARCHIVE
 RUN wget -O /tmp/production.zip https://releases.shopware.com/sw6/install_${SHOPWARE_ARCHIVE} && \
     unzip /tmp/production.zip
+
 
 FROM bash as jq
 RUN apk add gpg gpg-agent
@@ -28,13 +31,15 @@ RUN wget --no-check-certificate https://raw.githubusercontent.com/stedolan/jq/ma
     chmod +x /usr/bin/jq
 
 
-FROM php:${PHP_VERSION}-fpm as base
+FROM php:${PHP_VERSION}-fpm as php
 RUN apt-get update && apt-get install -y unzip && rm -rf /var/lib/apt/lists/*
 COPY --from=php-ext-installer /usr/bin/install-php-extensions /usr/local/bin
 RUN install-php-extensions curl dom fileinfo gd iconv intl json libxml mbstring openssl pcre pdo pdo_mysql phar simplexml sodium xml zip zlib
 RUN install-php-extensions redis
 COPY etc/php /usr/local/etc/php
-COPY --from=composer /usr/bin/composer /usr/bin/composer
+
+
+FROM php as php-node
 COPY --from=jq /usr/bin/jq /usr/bin/jq
 ARG NODE_VERSION
 RUN curl https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz | tar -xz -C /usr/local --strip-components 1
@@ -44,33 +49,47 @@ FROM nginx:${NGINX_VERSION} as nginx
 COPY etc/nginx /etc/nginx
 
 
-FROM base as build
+FROM php as dependencies
+COPY --from=composer /usr/bin/composer /usr/bin/composer
 COPY --from=production /app /app
 WORKDIR /app
-ENV CI=1
-RUN composer require --no-install --no-scripts enqueue/amqp-bunny
-# FIXME bin/build.sh
-RUN composer install --no-interaction --optimize-autoloader --no-suggest
-RUN composer install -d vendor/shopware/recovery --no-interaction --optimize-autoloader --no-suggest
-ENV SHOPWARE_SKIP_BUNDLE_DUMP=1 \
-    SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS=1 \
-    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1
-# check
+ENV COMPOSER_ALLOW_SUPERUSER=1
+ARG APP_ENV
+RUN composer install --no-interaction --optimize-autoloader --no-scripts $( [ "$APP_ENV" = 'prod' ] && printf %s '--no-dev' )
+RUN composer remove --no-scripts $( [ "$APP_ENV" = 'prod' ] && printf %s '--update-no-dev' ) shopware/recovery
+RUN composer require --no-scripts $( [ "$APP_ENV" = 'prod' ] && printf %s '--update-no-dev' ) enqueue/amqp-bunny
+
+
+FROM php-node as assets
+COPY --from=production /app /app
+COPY --from=dependencies /app/vendor /app/vendor
+WORKDIR /app
+ENV CI=1 \
+    SHOPWARE_SKIP_BUNDLE_DUMP=1 \
+    SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS=1
 RUN bin/build-administration.sh
 
 
-FROM base as sw
+FROM scratch as app
+COPY --from=production /app /app
+COPY --from=dependencies /app/vendor /app/vendor
+COPY --from=assets /app/public /app/public
+COPY app /app
+
+
+FROM php as sw
 ARG USER_ID
 ARG GROUP_ID
-COPY --from=production --chown=${USER_ID}:${GROUP_ID} /app /app
-COPY --from=build --chown=${USER_ID}:${GROUP_ID} /app/public /app/public
-COPY --from=build --chown=${USER_ID}:${GROUP_ID} /app/vendor /app/vendor
-COPY --chown=${USER_ID}:${GROUP_ID} app /app
-WORKDIR /app
+COPY --from=app --chown=${USER_ID}:${GROUP_ID} /app /app
 USER ${USER_ID}:${GROUP_ID}
-ENV SHOPWARE_ES_ENABLED="0" \
+WORKDIR /app
+ARG APP_ENV
+ENV APP_ENV=${APP_ENV} \
+    APP_DEBUG="0" \
+    SHOPWARE_ES_HOSTS="" \
+    SHOPWARE_ES_ENABLED="0" \
     SHOPWARE_ES_INDEXING_ENABLED="0" \
-    SHOPWARE_ES_INDEX_PREFIX="sw" \
+    SHOPWARE_ES_INDEX_PREFIX="" \
     SHOPWARE_HTTP_CACHE_ENABLED="1" \
     SHOPWARE_HTTP_DEFAULT_TTL="7200" \
     SHOPWARE_CDN_STRATEGY_DEFAULT="id" \
@@ -84,5 +103,5 @@ CMD bash
 
 
 FROM nginx as web
-COPY --from=build --chown=nginx:nginx /app /app
+COPY --from=app --chown=nginx:nginx /app /app
 WORKDIR /app

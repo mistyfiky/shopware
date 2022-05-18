@@ -9,12 +9,18 @@ x-tasks-profile: &tasks-profile
 x-tools-profile: &tools-profile
   profiles: [ "tools" ]
 
+x-build-defaults: &build-defaults
+  context: .
+  args:
+    APP_ENV: "dev"
+
 x-sw-defaults: &sw-defaults
   depends_on:
     - kv
     - db
-    - s3
     - mq
+    - s3
+    - mh
   environment:
     REDIS_SESSION_DSN: "tcp://kv:6379/1"
     REDIS_CACHE_DSN: "redis://kv:6379/2"
@@ -30,8 +36,7 @@ x-sw-defaults: &sw-defaults
     APP_ENV: "dev"
     APP_URL: "http://localhost:8000"
     DATABASE_URL: "mysql://user:password@db:3306/shopware"
-    SHOPWARE_ES_HOSTS: "elasticsearch:9200"
-    MAILER_URL: "native://default"
+    MAILER_URL: "smtp://mh:1025"
     APP_SECRET: "def0000038180dd6c4c4f8dde634d596f339cfc983efba7c00ecc69d7c17212a82802f8efc96aa655fde68771b809f364d2ac9f34ee16f71aa4b40fdf13000b8edcfa281"
     INSTANCE_ID: "OZv3IMXVJkrNdXsoyBGYKRcvyaMlYCCh"
   volumes:
@@ -39,7 +44,7 @@ x-sw-defaults: &sw-defaults
 
 x-cli-defaults: &cli-defaults
   build:
-    context: .
+    <<: *build-defaults
     target: cli
 
 services:
@@ -82,23 +87,22 @@ services:
     volumes:
       - "s3data:/data"
 
+  mh:
+    image: "mailhog/mailhog:v1.0.1"
+    ports:
+      - "8025:8025"
+
   sw:
     <<: *platform-profile
     <<: *sw-defaults
     build:
-      context: .
+      <<: *build-defaults
       target: sw
-
-  mailhog:
-    <<: *platform-profile
-    image: "mailhog/mailhog:latest"
-    ports:
-      - "8025:8025"
 
   web:
     <<: *platform-profile
     build:
-      context: .
+      <<: *build-defaults
       target: web
     depends_on:
       - sw
@@ -125,7 +129,7 @@ services:
     <<: *tasks-profile
     <<: *sw-defaults
     <<: *cli-defaults
-    command: "bin/wait-for-it.sh -t 30 -h db -p 3306 -- bin/console -n system:install --create-database -f"
+    command: "bin/wait-for-it.sh -s -t 60 -h db -p 3306 -- bin/console -n system:install --create-database -f"
 
   cli:
     <<: *tools-profile

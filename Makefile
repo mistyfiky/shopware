@@ -30,7 +30,7 @@ build:
 .PHONY: build
 
 up:
-	docker compose --profile platform up -d
+	docker compose --profile platform up -d --remove-orphans
 .PHONY: run
 
 stop:
@@ -38,11 +38,11 @@ stop:
 .PHONY: down
 
 down:
-	docker compose --profile platform down -v --rmi local
+	docker compose --profile platform down --remove-orphans --rmi local -v
 .PHONY: down
 
 recreate:
-	docker compose --profile platform up -d --force-recreate
+	docker compose --profile platform up -d --remove-orphans --force-recreate
 .PHONY: recreate
 
 system-install:
@@ -60,9 +60,7 @@ cli:
 .PHONY: cli
 
 .app:
-	id=$$(docker compose run --rm -d cli)
-	docker cp "$$id":/app $@
-	docker stop "$$id"
+	docker cp -a "$$(docker compose run -d --no-deps --rm cli sleep 30)":/app $@
 
 initdb.d/_schema.sql:
 	wget -O $@ https://raw.githubusercontent.com/shopware/core/v6.4.11.1/schema.sql
