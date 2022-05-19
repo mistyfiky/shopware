@@ -67,7 +67,7 @@ initdb.d/_schema.sql:
 
 initdb.d/dump.sql:
 	[ ! -f $@ ] || mv $@ $@.bak
-	docker compose exec db mysqldump -uroot -ppassword shopware >$@
+	docker compose exec db mysqldump -uroot -ppassword shopware 1>$@
 
 docker-compose.phpstorm.yml:
 	docker compose --profile platform config >$@

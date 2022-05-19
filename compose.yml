@@ -12,7 +12,7 @@ x-tools-profile: &tools-profile
 x-build-defaults: &build-defaults
   context: .
   args:
-    APP_ENV: "dev"
+    APP_ENV: "${APP_ENV:-dev}"
 
 x-sw-defaults: &sw-defaults
   depends_on:
@@ -33,7 +33,6 @@ x-sw-defaults: &sw-defaults
     S3_ENDPOINT: "http://s3:9000"
     S3_ACCESS_KEY: "user"
     S3_SECRET_KEY: "password"
-    APP_ENV: "dev"
     APP_URL: "http://localhost:8000"
     DATABASE_URL: "mysql://user:password@db:3306/shopware"
     MAILER_URL: "smtp://mh:1025"
@@ -43,6 +42,7 @@ x-sw-defaults: &sw-defaults
     - "jwtdata:/app/config/jwt"
 
 x-cli-defaults: &cli-defaults
+  image: "ghcr.io/mistyfiky/uber-shopware/cli-${APP_ENV:-dev}:latest"
   build:
     <<: *build-defaults
     target: cli
@@ -95,12 +95,14 @@ services:
   sw:
     <<: *platform-profile
     <<: *sw-defaults
+    image: "ghcr.io/mistyfiky/uber-shopware/sw-${APP_ENV:-dev}:latest"
     build:
       <<: *build-defaults
       target: sw
 
   web:
     <<: *platform-profile
+    image: "ghcr.io/mistyfiky/uber-shopware/web-${APP_ENV:-dev}:latest"
     build:
       <<: *build-defaults
       target: web
