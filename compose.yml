@@ -21,7 +21,7 @@ x-sw-defaults: &sw-defaults
     - mq
     - s3
     - mh
-  environment:
+  environment: &sw-defaults-environment
     REDIS_SESSION_DSN: "tcp://kv:6379/1"
     REDIS_CACHE_DSN: "redis://kv:6379/2"
     REDIS_LOCK_DSN: "redis://kv:6379/3"
@@ -62,8 +62,8 @@ services:
       MYSQL_DATABASE: "shopware"
     image: "mysql:8.0.29"
     volumes:
-      - "./initdb.d:/docker-entrypoint-initdb.d"
       - "dbdata:/var/lib/mysql"
+      - "./dump.sql:/docker-entrypoint-initdb.d/dump.sql"
 
   mq:
     environment:
@@ -127,11 +127,23 @@ services:
     command: "bin/console -n scheduled-task:run --time-limit=60 --memory-limit=128M"
     restart: unless-stopped
 
-  system-install:
+  install:
     <<: *tasks-profile
     <<: *sw-defaults
     <<: *cli-defaults
-    command: "bin/wait-for-it.sh -s -t 60 -h db -p 3306 -- bin/console -n system:install --create-database -f"
+    environment:
+      <<: *sw-defaults-environment
+      SHOP_NAME: "Storefront"
+      SHOP_EMAIL: "admin@localhost"
+      SHOP_LOCALE: "en-GB"
+      SHOP_CURRENCY: "EUR"
+    command: "bin/wait-for-it.sh -s -t 60 -h db -p 3306 -- bin/install.sh"
+
+  update:
+    <<: *tasks-profile
+    <<: *sw-defaults
+    <<: *cli-defaults
+    command: "bin/wait-for-it.sh -s -t 60 -h db -p 3306 -- bin/update.sh"
 
   cli:
     <<: *tools-profile

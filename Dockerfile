@@ -40,12 +40,14 @@ FROM php:${PHP_VERSION}-fpm as php-base
 RUN apt-get update && apt-get install -y unzip && rm -rf /var/lib/apt/lists/*
 COPY --from=php-ext-installer /usr/bin/install-php-extensions /usr/local/bin
 RUN install-php-extensions curl dom fileinfo gd iconv intl json libxml mbstring openssl pcre pdo pdo_mysql phar simplexml sodium xml zip zlib
+RUN install-php-extensions apcu
 RUN install-php-extensions redis
 # TODO separate base config files
 COPY etc/php /usr/local/etc/php
 
 
 FROM php-base as php-prod
+RUN install-php-extensions opcache
 
 
 FROM php-base as php-dev
@@ -86,7 +88,7 @@ ARG NODE_VERSION
 RUN curl https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz | tar -xz -C /usr/local --strip-components 1
 
 
-# TODO separate prod and de assets?
+# TODO separate prod and dev assets?
 FROM php-node as assets
 COPY --from=production /app /app
 COPY --from=vendor /app /app

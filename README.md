@@ -5,12 +5,12 @@
 ### dev
 
 ```shell
-make init
+make install up urls
 ```
 
 ### prod
 
 ```shell
 export COMPOSE_FILE=compose.yml:compose.prod.yml
-make init
+make install up urls
 ```

@@ -3,34 +3,45 @@ SHELL = /bin/bash
 .ONESHELL:
 .DEFAULT_GOAL := help
 
+define urls
+@>&2 printf '%20s %-28s%s\n' \
+ 'storefront' 'http://localhost:8000' '- : -' \
+ 'storefront-watch' 'http://localhost:????' '- : -' \
+ 'administration' 'http://localhost:8000/admin' 'admin : password' \
+ 'administration-watch' 'http://localhost:3000' 'admin : password' \
+ 'minio' 'http://localhost:9001' 'user : password' \
+ 'rabbitmq' 'http://localhost:15672' 'user : password' \
+ 'mailhog' 'http://localhost:8025' '- : -'
+endef
+
 help:
 	@>&2 printf 'commands:\n'
 	@>&2 printf '\tTODO\n'
 	@>&2 printf 'urls:\n'
-	@>&2 printf '%20s %-28s%s\n' \
-	 'storefront' 'http://localhost:8000' '- : -' \
-	 'storefront-watch' 'http://localhost:????' '- : -' \
-	 'administration' 'http://localhost:8000/admin' 'admin : password' \
-	 'administration-watch' 'http://localhost:3000' 'admin : password' \
-	 'minio' 'http://localhost:9001' 'user : password' \
-	 'rabbitmq' 'http://localhost:15672' 'user : password' \
-	 'mailhog' 'http://localhost:8025' '- : -'
+	$(call urls)
 .PHONY: help
+
+urls:
+	$(call urls)
+.PHONY: urls
 
 clean:
 	rm -fr .app
+	rm -fr compose.phpstorm.dev.yml
+	rm -f dump_*.sql
 .PHONY: clean
 
 purge:
-	rm -f initdb.d/dump.sql
+	rm -f dump.sql
 .PHONY: purge
 
 build:
 	docker compose --profile platform --profile tasks --profile tools build
 .PHONY: build
 
-up:
+up: dump.sql
 	docker compose --profile platform up -d --remove-orphans
+	$(call urls)
 .PHONY: run
 
 stop:
@@ -41,18 +52,20 @@ down:
 	docker compose --profile platform down --remove-orphans --rmi local -v
 .PHONY: down
 
-recreate:
+recreate: dump.sql
 	docker compose --profile platform up -d --remove-orphans --force-recreate
+	$(call urls)
 .PHONY: recreate
 
-system-install:
-	docker compose run --rm system-install
-.PHONY: system-install
+install: dump.sql
+	docker compose run --rm install
+.PHONY: install
 
-init: system-install up
-.PHONY: init
+update: dump.sql
+	docker compose run --rm update
+.PHONY: install
 
-reinit: build down init
+reinstall: build down install
 .PHONY: reinit
 
 cli:
@@ -62,12 +75,15 @@ cli:
 .app:
 	docker cp -a "$$(docker compose run -d --no-deps --rm cli sleep 30)":/app $@
 
-initdb.d/_schema.sql:
-	wget -O $@ https://raw.githubusercontent.com/shopware/core/v6.4.11.1/schema.sql
+dump.sql:
+	touch $@
 
-initdb.d/dump.sql:
-	[ ! -f $@ ] || mv $@ $@.bak
-	docker compose exec db mysqldump -uroot -ppassword shopware 1>$@
+db-dump:
+	[ ! -f dump.sql ] || mv dump.sql dump_$$(date +%s).sql
+	docker compose exec db mysqldump -uroot -ppassword shopware 1>dump.sql
+.PHONY: db-dump
 
-docker-compose.phpstorm.yml:
-	docker compose --profile platform config >$@
+compose.phpstorm.dev.yml:
+	APP_ENV=dev docker compose --profile tools config >$@
+	yq --inplace 'del(.services.cli.profiles)' $@
+.PHONY: compose.phpstorm.yml

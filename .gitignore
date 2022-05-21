@@ -1,2 +1,4 @@
 /.app/
-/initdb.d/dump.sql
+/compose.phpstorm.dev.yml
+/dump.sql
+/dump_*.sql
