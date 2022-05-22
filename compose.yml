@@ -9,18 +9,22 @@ x-tasks-profile: &tasks-profile
 x-tools-profile: &tools-profile
   profiles: [ "tools" ]
 
-x-build-defaults: &build-defaults
-  context: .
-  args:
-    APP_ENV: "${APP_ENV:-dev}"
-
 x-sw-defaults: &sw-defaults
-  depends_on:
-    - kv
-    - db
-    - mq
-    - s3
-    - mh
+  build:
+    context: .
+    args:
+      APP_ENV: "${APP_ENV:-dev}"
+  depends_on: &sw-defaults-depends-on
+    kv:
+      condition: service_started
+    db:
+      condition: service_started
+    mq:
+      condition: service_started
+    s3:
+      condition: service_started
+    mh:
+      condition: service_started
   environment: &sw-defaults-environment
     REDIS_SESSION_DSN: "tcp://kv:6379/1"
     REDIS_CACHE_DSN: "redis://kv:6379/2"
@@ -38,14 +42,9 @@ x-sw-defaults: &sw-defaults
     MAILER_URL: "smtp://mh:1025"
     APP_SECRET: "def0000038180dd6c4c4f8dde634d596f339cfc983efba7c00ecc69d7c17212a82802f8efc96aa655fde68771b809f364d2ac9f34ee16f71aa4b40fdf13000b8edcfa281"
     INSTANCE_ID: "OZv3IMXVJkrNdXsoyBGYKRcvyaMlYCCh"
+  image: "ghcr.io/mistyfiky/uber-shopware/sw-${APP_ENV:-dev}:latest"
   volumes:
     - "jwtdata:/app/config/jwt"
-
-x-cli-defaults: &cli-defaults
-  image: "ghcr.io/mistyfiky/uber-shopware/cli-${APP_ENV:-dev}:latest"
-  build:
-    <<: *build-defaults
-    target: cli
 
 services:
 
@@ -92,63 +91,57 @@ services:
     ports:
       - "8025:8025"
 
-  sw:
+  nx:
     <<: *platform-profile
-    <<: *sw-defaults
-    image: "ghcr.io/mistyfiky/uber-shopware/sw-${APP_ENV:-dev}:latest"
-    build:
-      <<: *build-defaults
-      target: sw
-
-  web:
-    <<: *platform-profile
-    image: "ghcr.io/mistyfiky/uber-shopware/web-${APP_ENV:-dev}:latest"
-    build:
-      <<: *build-defaults
-      target: web
-    depends_on:
-      - sw
     environment:
-      NGINX_FASTCGI_PASS: "sw:9000"
+      NGINX_FASTCGI_PASS: "shopware:9000"
+    image: "nginx:1.21.6"
     ports:
       - "8000:80"
+    volumes:
+      - "./etc/nginx/templates/default.conf.template:/etc/nginx/templates/default.conf.template:ro"
+
+  shopware:
+    <<: *platform-profile
+    <<: *sw-defaults
+    depends_on:
+      <<: *sw-defaults-depends-on
+      nx:
+        condition: service_started
 
   consumer:
     <<: *platform-profile
     <<: *sw-defaults
-    <<: *cli-defaults
     command: "bin/console -n messenger:consume default --time-limit=60 --memory-limit=128M"
     restart: unless-stopped
 
   task-runner:
     <<: *platform-profile
     <<: *sw-defaults
-    <<: *cli-defaults
     command: "bin/console -n scheduled-task:run --time-limit=60 --memory-limit=128M"
     restart: unless-stopped
 
   install:
     <<: *tasks-profile
     <<: *sw-defaults
-    <<: *cli-defaults
     environment:
       <<: *sw-defaults-environment
       SHOP_NAME: "Storefront"
       SHOP_EMAIL: "admin@localhost"
       SHOP_LOCALE: "en-GB"
       SHOP_CURRENCY: "EUR"
+      ADMIN_PASSWORD: "password"
     command: "bin/wait-for-it.sh -s -t 60 -h db -p 3306 -- bin/install.sh"
 
   update:
     <<: *tasks-profile
     <<: *sw-defaults
-    <<: *cli-defaults
     command: "bin/wait-for-it.sh -s -t 60 -h db -p 3306 -- bin/update.sh"
 
   cli:
     <<: *tools-profile
     <<: *sw-defaults
-    <<: *cli-defaults
+    command: "bash"
 
 volumes:
   kvdata:

@@ -3,26 +3,22 @@ SHELL = /bin/bash
 .ONESHELL:
 .DEFAULT_GOAL := help
 
-define urls
-@>&2 printf '%20s %-28s%s\n' \
- 'storefront' 'http://localhost:8000' '- : -' \
- 'storefront-watch' 'http://localhost:????' '- : -' \
- 'administration' 'http://localhost:8000/admin' 'admin : password' \
- 'administration-watch' 'http://localhost:3000' 'admin : password' \
- 'minio' 'http://localhost:9001' 'user : password' \
- 'rabbitmq' 'http://localhost:15672' 'user : password' \
- 'mailhog' 'http://localhost:8025' '- : -'
-endef
-
 help:
 	@>&2 printf 'commands:\n'
 	@>&2 printf '\tTODO\n'
 	@>&2 printf 'urls:\n'
-	$(call urls)
+	$(MAKE) --no-print-directory urls
 .PHONY: help
 
 urls:
-	$(call urls)
+	@>&2 printf '%20s %-28s%s\n' \
+	 'storefront' 'http://localhost:8000' '- : -' \
+	 'storefront-watch' 'http://localhost:????' '- : -' \
+	 'administration' 'http://localhost:8000/admin' 'admin : password' \
+	 'administration-watch' 'http://localhost:3000' 'admin : password' \
+	 'minio' 'http://localhost:9001' 'user : password' \
+	 'rabbitmq' 'http://localhost:15672' 'user : password' \
+	 'mailhog' 'http://localhost:8025' '- : -'
 .PHONY: urls
 
 clean:
@@ -41,12 +37,11 @@ build:
 
 up: dump.sql
 	docker compose --profile platform up -d --remove-orphans
-	$(call urls)
-.PHONY: run
+.PHONY: up
 
 stop:
 	docker compose --profile platform stop
-.PHONY: down
+.PHONY: stop
 
 down:
 	docker compose --profile platform down --remove-orphans --rmi local -v
@@ -54,7 +49,6 @@ down:
 
 recreate: dump.sql
 	docker compose --profile platform up -d --remove-orphans --force-recreate
-	$(call urls)
 .PHONY: recreate
 
 install: dump.sql
@@ -63,10 +57,10 @@ install: dump.sql
 
 update: dump.sql
 	docker compose run --rm update
-.PHONY: install
+.PHONY: update
 
 reinstall: build down install
-.PHONY: reinit
+.PHONY: reinstall
 
 cli:
 	docker compose run --rm cli
@@ -86,4 +80,4 @@ db-dump:
 compose.phpstorm.dev.yml:
 	APP_ENV=dev docker compose --profile tools config >$@
 	yq --inplace 'del(.services.cli.profiles)' $@
-.PHONY: compose.phpstorm.yml
+.PHONY: compose.phpstorm.dev.yml

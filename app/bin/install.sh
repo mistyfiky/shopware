@@ -9,3 +9,5 @@ php "${BIN_DIR}/console" -n system:install -f --create-database --basic-setup \
  --shop-email="$SHOP_EMAIL" \
  --shop-locale="$SHOP_LOCALE" \
  --shop-currency="$SHOP_CURRENCY"
+
+php "${BIN_DIR}/console" -n user:change-password -p "$ADMIN_PASSWORD" admin
