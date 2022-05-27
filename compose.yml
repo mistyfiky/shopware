@@ -14,7 +14,7 @@ x-sw-defaults: &sw-defaults
     context: .
     args:
       APP_ENV: "${APP_ENV:-dev}"
-  depends_on: &sw-defaults-depends-on
+  depends_on:
     kv:
       condition: service_started
     db:
@@ -91,8 +91,15 @@ services:
     ports:
       - "8025:8025"
 
-  nx:
+  shopware:
     <<: *platform-profile
+    <<: *sw-defaults
+
+  web:
+    <<: *platform-profile
+    depends_on:
+      shopware:
+        condition: service_started
     environment:
       NGINX_FASTCGI_PASS: "shopware:9000"
     image: "nginx:1.21.6"
@@ -100,14 +107,6 @@ services:
       - "8000:80"
     volumes:
       - "./etc/nginx/templates/default.conf.template:/etc/nginx/templates/default.conf.template:ro"
-
-  shopware:
-    <<: *platform-profile
-    <<: *sw-defaults
-    depends_on:
-      <<: *sw-defaults-depends-on
-      nx:
-        condition: service_started
 
   consumer:
     <<: *platform-profile

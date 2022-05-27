@@ -81,3 +81,15 @@ compose.phpstorm.dev.yml:
 	APP_ENV=dev docker compose --profile tools config >$@
 	yq --inplace 'del(.services.cli.profiles)' $@
 .PHONY: compose.phpstorm.dev.yml
+
+production.tar.gz:
+	mkdir -p production
+	wget https://github.com/shopware/production/archive/refs/tags/v6.4.11.1.tar.gz -O - | tar -xzvC production \
+	 --exclude */.github \
+	 --exclude */.gitlab-ci \
+	 --exclude */.dockerignore \
+	 --exclude */.gitlab-ci.yml \
+	 --exclude */Dockerfile \
+	 --strip-components 1
+	tar -czvf $@ -C production --owner=0 --group=0 --mtime='UTC 2001-01-01 00:00:00' .
+	rm -fr production
