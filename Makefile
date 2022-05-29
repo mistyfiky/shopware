@@ -78,8 +78,7 @@ db-dump:
 .PHONY: db-dump
 
 compose.phpstorm.dev.yml:
-	APP_ENV=dev docker compose --profile tools config >$@
-	yq --inplace 'del(.services.cli.profiles)' $@
+	APP_ENV=dev docker compose --profile tools config | yq 'del(.services.cli.profiles)' >$@
 .PHONY: compose.phpstorm.dev.yml
 
 production.tar.gz:
@@ -93,3 +92,21 @@ production.tar.gz:
 	 --strip-components 1
 	tar -czvf $@ -C production --owner=0 --group=0 --mtime='UTC 2001-01-01 00:00:00' .
 	rm -fr production
+
+config.json:
+	@read -rp 'GitHub username: ' USER
+	@read -rsp 'GitHub PAT: ' PASSWORD
+	@echo -n "{\"auths\":{\"ghcr.io\":{\"auth\":\"$$(echo $$USERNAME:$$PASSWORD | base64)\"}}}" >$@
+
+kaniko: config.json
+	SHOPWARE_IMAGE=$$(APP_ENV=prod docker compose --profile platform config | yq '.services.shopware.image')
+	docker run --rm -it \
+	 -v "$$(pwd)":/workspace \
+	 -v "$$(pwd)/config.json":/kaniko/.docker/config.json:ro \
+	 gcr.io/kaniko-project/executor:v1.8.1 \
+	 --dockerfile=/workspace/Dockerfile \
+	 --context=dir:///workspace/ \
+	 --destination="$$SHOPWARE_IMAGE" \
+	 --cache=true \
+	 --build-arg APP_ENV=prod
+.PHONY: kaniko

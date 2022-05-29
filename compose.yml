@@ -42,7 +42,7 @@ x-sw-defaults: &sw-defaults
     MAILER_URL: "smtp://mh:1025"
     APP_SECRET: "def0000038180dd6c4c4f8dde634d596f339cfc983efba7c00ecc69d7c17212a82802f8efc96aa655fde68771b809f364d2ac9f34ee16f71aa4b40fdf13000b8edcfa281"
     INSTANCE_ID: "OZv3IMXVJkrNdXsoyBGYKRcvyaMlYCCh"
-  image: "ghcr.io/mistyfiky/uber-shopware/sw-${APP_ENV:-dev}:latest"
+  image: "ghcr.io/mistyfiky/shopware/${APP_ENV:-dev}:latest"
   volumes:
     - "jwtdata:/app/config/jwt"
 

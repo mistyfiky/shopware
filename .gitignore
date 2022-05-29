@@ -1,4 +1,5 @@
 /.app/
-/compose.phpstorm.dev.yml
+/compose.phpstorm.*.yml
+/config.json
 /dump.sql
 /dump_*.sql

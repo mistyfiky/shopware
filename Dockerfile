@@ -1,116 +1,112 @@
-# syntax=docker/dockerfile:1.4
-
-ARG PHP_VERSION=8.1.5
+ARG PROJECT_REPO=https://github.com/mistyfiky/shopware
 ARG PHP_EXT_INSTALLER_VERSION=1.5.12
-ARG APP_ENV
 ARG COMPOSER_VERSION=2.3.5
-ARG BASH_VERSION=5.1.16
 ARG JQ_VERSION=1.5
+ARG PHP_VERSION=8.1.5
+ARG APP_ENV=dev
 ARG NODE_VERSION=16.15.0
 ARG USER_ID=1000
 ARG GROUP_ID=1000
 
+
 FROM mlocati/php-extension-installer:${PHP_EXT_INSTALLER_VERSION} as php-ext-installer
-
-
-FROM php:${PHP_VERSION}-fpm-alpine as php-base
-WORKDIR /srv
-RUN --mount=target=/usr/bin/install-php-extensions,source=/usr/bin/install-php-extensions,from=php-ext-installer \
-    install-php-extensions \
-     curl dom fileinfo gd iconv intl json libxml mbstring openssl pcre pdo pdo_mysql phar simplexml sodium xml zip zlib \
-     apcu \
-     redis
-
-
-FROM php-base as php-prod
-RUN --mount=target=/usr/bin/install-php-extensions,source=/usr/bin/install-php-extensions,from=php-ext-installer \
-    install-php-extensions opcache
-
-
-FROM php-base as php-dev
-# TODO add xdebug config
-RUN --mount=target=/usr/bin/install-php-extensions,source=/usr/bin/install-php-extensions,from=php-ext-installer \
-    install-php-extensions xdebug
-
-
-FROM php-${APP_ENV} as php
-RUN apk add --no-cache bash
-# TODO separate base config files
-COPY --link etc/php /usr/local/etc/php
-ARG APP_ENV
-ENV APP_ENV=${APP_ENV}
-
-
-FROM scratch as scratch
-WORKDIR /srv
-
-
-FROM scratch as stage1
-ADD production.tar.gz .
 
 
 FROM composer:${COMPOSER_VERSION} as composer
 
 
-FROM php as vendor-base
-COPY --from=stage1 --link /srv .
-ENV COMPOSER_ALLOW_SUPERUSER=1
-RUN --mount=target=/usr/bin/composer,source=/usr/bin/composer,from=composer \
-    --mount=type=cache,target=/root/.composer \
-    composer remove --no-update --no-scripts shopware/recovery && \
-    composer require --no-install --no-scripts enqueue/amqp-bunny
+FROM bash as jq
+ARG JQ_VERSION
+ADD https://github.com/stedolan/jq/releases/download/jq-${JQ_VERSION}/jq-linux64 /usr/bin/jq
+RUN chmod 755 /usr/bin/jq
 
 
-FROM bash:${BASH_VERSION} as tmp-app-shell
+FROM scratch as stage
+WORKDIR /srv
+
+
+FROM bash as catalyst
 WORKDIR /tmp/app
 
 
-FROM tmp-app-shell as plugins-composer-files
-RUN --mount=target=/tmp/app/custom/static-plugins,source=app/custom/static-plugins \
-    [ -z "$(ls custom/static-plugins)" ] || cp -r --parents custom/static-plugins/*/composer.json /srv
+FROM php:${PHP_VERSION}-fpm-alpine as php-base
+COPY --from=php-ext-installer /usr/bin/install-php-extensions /usr/bin/install-php-extensions
+RUN IPE_GD_WITHOUTAVIF=1 install-php-extensions \
+     curl dom fileinfo gd iconv intl json libxml mbstring openssl pcre pdo pdo_mysql phar simplexml sodium xml zip zlib \
+     apcu \
+     redis && \
+    IPE_DONT_ENABLE=1 install-php-extensions \
+     opcache \
+     xdebug
 
 
-FROM scratch as jq
-ARG JQ_VERSION
-ADD --chmod=755 https://github.com/stedolan/jq/releases/download/jq-${JQ_VERSION}/jq-linux64 /usr/bin/jq
+FROM php-base as php-prod
+RUN docker-php-ext-enable-opcache
+# TODO separate base config files
+COPY etc/php /usr/local/etc/php
+
+
+FROM php-base as php-dev
+# TODO add xdebug config
+RUN docker-php-ext-enable-xdebug
+# TODO separate base config files
+COPY etc/php /usr/local/etc/php
+
+
+FROM php-${APP_ENV} as php
+RUN apk add --no-cache bash
+WORKDIR /srv
+ARG APP_ENV
+ENV APP_ENV=${APP_ENV}
+
+
+FROM stage as stage1
+ADD production.tar.gz .
+
+
+FROM php as vendor-base
+COPY --from=composer /usr/bin/composer /usr/bin/composer
+ENV COMPOSER_ALLOW_SUPERUSER=1
+COPY --from=stage1 /srv .
+RUN composer remove --no-update --no-scripts shopware/recovery && \
+    composer require --no-install --no-scripts enqueue/amqp-bunny
+
+
+FROM catalyst as plugins-composer-files
+COPY app/custom/static-plugins /tmp/app/custom/static-plugins
+RUN [ -z "$(ls custom/static-plugins)" ] || cp -r --parents custom/static-plugins/*/composer.json /srv
 
 
 FROM vendor-base as vendor-plugins
-COPY --from=plugins-composer-files --link /srv .
-RUN --mount=target=/usr/bin/composer,source=/usr/bin/composer,from=composer \
-    --mount=target=/usr/bin/jq,source=/usr/bin/jq,from=jq \
-    --mount=type=cache,target=/root/.composer \
-    [ -z "$(ls custom/static-plugins)" ] || for plugin in custom/static-plugins/*; do \
+COPY --from=jq /usr/bin/jq /usr/bin/jq
+COPY --from=plugins-composer-files /srv .
+RUN [ -z "$(ls custom/static-plugins)" ] || for plugin in custom/static-plugins/*; do \
      composer require --no-install --no-scripts $(jq -r '.name' "$plugin/composer.json"); \
     done
 
 
 FROM vendor-plugins as vendor-prod
-RUN --mount=target=/usr/bin/composer,source=/usr/bin/composer,from=composer \
-    --mount=type=cache,target=/root/.composer \
-    composer install --no-interaction --optimize-autoloader --no-scripts --no-dev
+RUN composer install --no-interaction --optimize-autoloader --no-scripts --no-dev
 
 
 FROM vendor-plugins as vendor-dev
-RUN --mount=target=/usr/bin/composer,source=/usr/bin/composer,from=composer \
-    --mount=type=cache,target=/root/.composer \
-    composer install --no-interaction --optimize-autoloader --no-scripts
+RUN composer install --no-interaction --optimize-autoloader --no-scripts
 
 
 FROM vendor-${APP_ENV} as vendor
 
 
 FROM php as bundle-dump
-COPY --from=stage1 --link /srv .
-COPY --from=vendor --link /srv .
-RUN --mount=target=/srv/custom,source=app/custom \
-    bin/ci bundle:dump
+COPY --from=stage1 /srv .
+COPY --from=vendor /srv .
+COPY app/custom/static-plugins /srv/custom/static-plugins
+RUN bin/ci bundle:dump
 
 
-FROM scratch as stage2
-COPY --from=stage1 --link /srv .
-COPY --from=vendor --link /srv .
-COPY --from=bundle-dump --link /srv/var/plugins.json ./var/plugins.json
+FROM stage as stage2
+COPY --from=stage1 /srv .
+COPY --from=vendor /srv .
+COPY --from=bundle-dump /srv/var/plugins.json ./var/plugins.json
 
 
 # TODO separate prod and dev assets?
@@ -118,40 +114,40 @@ FROM node:${NODE_VERSION} as node
 WORKDIR /srv
 
 
-FROM tmp-app-shell as plugins-resources
-RUN --mount=target=/tmp/app/custom/static-plugins,source=app/custom/static-plugins \
-    [ -z "$(ls custom/static-plugins)" ] || cp -r --parents custom/static-plugins/*/src/Resources/app /srv
+FROM catalyst as plugins-resources
+COPY app/custom/static-plugins /srv/custom/static-plugins
+RUN [ -z "$(ls custom/static-plugins)" ] || cp -r --parents custom/static-plugins/*/src/Resources/app /srv
 
 
 FROM node as compile-plugins-assets
-COPY --from=stage2 --link /srv .
+COPY --from=jq /usr/bin/jq /usr/bin/jq
+COPY --from=stage2 /srv .
 COPY --from=plugins-resources /srv .
 ENV CI=1 \
     SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS=1 \
     SHOPWARE_SKIP_BUNDLE_DUMP=1 \
     SHOPWARE_SKIP_ASSET_COPY=1
-RUN --mount=target=/usr/bin/jq,source=/usr/bin/jq,from=jq \
-    --mount=type=cache,target=/root/.npm \
-    bin/build-administration.sh
+RUN bin/build-administration.sh
 
 
-FROM tmp-app-shell as plugins-assets
-RUN --mount=target=/tmp/app/custom/static-plugins,source=/srv/custom/static-plugins,from=compile-plugins-assets \
-    [ -z "$(ls custom/static-plugins)" ] || cp -r --parents custom/static-plugins/*/src/Resources/public /srv
+FROM catalyst as plugins-assets
+COPY --from=compile-plugins-assets /srv/custom/static-plugins /tmp/app/custom/static-plugins
+RUN [ -z "$(ls custom/static-plugins)" ] || cp -r --parents custom/static-plugins/*/src/Resources/public /srv
 
 
-FROM scratch as stage3
-COPY --from=stage2 --link /srv .
-COPY --from=plugins-assets --link /srv .
-COPY --link app .
+FROM stage as stage3
+COPY --from=stage2 /srv .
+COPY --from=plugins-assets /srv .
+COPY app .
 
 
 FROM php
 ARG USER_ID
 ARG GROUP_ID
+RUN addgroup -Sg ${GROUP_ID} app && adduser -Su ${USER_ID} app -G app
 USER ${USER_ID}:${GROUP_ID}
 WORKDIR /app
-COPY --from=stage3 --chown=${USER_ID}:${GROUP_ID} --link /srv .
+COPY --from=stage3 --chown=${USER_ID}:${GROUP_ID} /srv .
 ENV APP_DEBUG="0" \
     SHOPWARE_ES_HOSTS="" \
     SHOPWARE_ES_ENABLED="0" \
@@ -163,3 +159,4 @@ ENV APP_DEBUG="0" \
     BLUE_GREEN_DEPLOYMENT="0" \
     COMPOSER_HOME="/app/var/cache/composer" \
     DISABLE_EXTENSIONS=1
+LABEL org.opencontainers.image.source=$PROJECT_REPO
