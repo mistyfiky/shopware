@@ -1,0 +1,44 @@
+<sw-card-view>
+    <sw-card class="frosh-tools-tab-scheduled__tasks-card" :title="$tc('frosh-tools.tabs.scheduledTaskOverview.title')" :isLoading="isLoading" :large="true">
+
+        <template #toolbar>
+            <!-- @todo: Make the refresh button fancy -->
+            <sw-button variant="ghost" @click="refresh"><sw-icon :small="true" name="default-arrow-360-left"></sw-icon></sw-button>
+        </template>
+
+        <sw-entity-listing
+            :showSelection="false"
+            :fullPage="false"
+            :allowInlineEdit="true"
+            :allowEdit="false"
+            :allowDelete="false"
+            :showActions="true"
+            :repository="scheduledRepository"
+            :items="items"
+            :columns="columns">
+
+            <template #column-lastExecutionTime="{ item }">
+                {{ item.lastExecutionTime | date({hour: '2-digit', minute: '2-digit'}) }}
+            </template>
+            <template #column-nextExecutionTime="{ item, column, compact, isInlineEdit }">
+                <sw-data-grid-inline-edit
+                    v-if="isInlineEdit"
+                    :column="column"
+                    :compact="compact"
+                    :value="item[column.property]"
+                    @input="item[column.property] = $event">
+                </sw-data-grid-inline-edit>
+
+                <span v-else>
+                     {{ item.nextExecutionTime | date({hour: '2-digit', minute: '2-digit'}) }}
+                </span>
+            </template>
+
+            <template #actions="{ item }">
+                <sw-context-menu-item variant="primary" @click="runTask(item)">
+                    {{ $tc('frosh-tools.runManually') }}
+                </sw-context-menu-item>
+            </template>
+        </sw-entity-listing>
+    </sw-card>
+</sw-card-view>

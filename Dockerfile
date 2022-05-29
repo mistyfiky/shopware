@@ -9,120 +9,112 @@ ARG USER_ID=1000
 ARG GROUP_ID=1000
 
 
-FROM mlocati/php-extension-installer:${PHP_EXT_INSTALLER_VERSION} as php-ext-installer
+FROM mlocati/php-extension-installer:${PHP_EXT_INSTALLER_VERSION} AS php-ext-installer-img
+FROM scratch AS php-ext-installer
+COPY --from=php-ext-installer-img /usr/bin/install-php-extensions /usr/bin/install-php-extensions
 
 
-FROM composer:${COMPOSER_VERSION} as composer
+FROM composer:${COMPOSER_VERSION} AS composer-img
+FROM scratch AS composer
+COPY --from=composer-img /usr/bin/composer /usr/bin/composer
 
 
-FROM bash as jq
+FROM node:${NODE_VERSION}-alpine AS node-img
+FROM scratch AS node
+COPY --from=node-img /usr/lib /usr/lib
+COPY --from=node-img /usr/local/share /usr/local/share
+COPY --from=node-img /usr/local/lib /usr/local/lib
+COPY --from=node-img /usr/local/include /usr/local/include
+COPY --from=node-img /usr/local/bin /usr/local/bin
+
+
+FROM bash AS jq-img
 ARG JQ_VERSION
 ADD https://github.com/stedolan/jq/releases/download/jq-${JQ_VERSION}/jq-linux64 /usr/bin/jq
 RUN chmod 755 /usr/bin/jq
+FROM scratch AS jq
+COPY --from=jq-img /usr/bin/jq /usr/bin/jq
 
 
-FROM scratch as stage
-WORKDIR /srv
+FROM scratch AS stage
+WORKDIR /app
 
 
-FROM bash as catalyst
-WORKDIR /tmp/app
+FROM php:${PHP_VERSION}-fpm-alpine AS base
+COPY --from=php-ext-installer / /
+RUN IPE_GD_WITHOUTAVIF=1 install-php-extensions curl dom fileinfo gd iconv intl json libxml mbstring openssl pcre pdo pdo_mysql phar simplexml sodium xml zip zlib
+RUN install-php-extensions apcu
+RUN install-php-extensions redis
 
 
-FROM php:${PHP_VERSION}-fpm-alpine as php-base
-COPY --from=php-ext-installer /usr/bin/install-php-extensions /usr/bin/install-php-extensions
-RUN IPE_GD_WITHOUTAVIF=1 install-php-extensions \
-     curl dom fileinfo gd iconv intl json libxml mbstring openssl pcre pdo pdo_mysql phar simplexml sodium xml zip zlib \
-     apcu \
-     redis && \
-    IPE_DONT_ENABLE=1 install-php-extensions \
-     opcache \
-     xdebug
+FROM base AS php-prod
+RUN install-php-extensions opcache
 
 
-FROM php-base as php-prod
-RUN docker-php-ext-enable-opcache
-# TODO separate base config files
-COPY etc/php /usr/local/etc/php
-
-
-FROM php-base as php-dev
+FROM base AS php-dev
 # TODO add xdebug config
-RUN docker-php-ext-enable-xdebug
-# TODO separate base config files
-COPY etc/php /usr/local/etc/php
+RUN install-php-extensions xdebug
 
 
-FROM php-${APP_ENV} as php
+FROM php-${APP_ENV} AS php
 RUN apk add --no-cache bash
-WORKDIR /srv
+
+
+FROM stage AS stage0
+COPY --from=php / /
+# TODO separate base config files
+COPY stage0 /
+
+
+FROM stage0 AS base
+COPY --from=node / /
+
+
+FROM stage AS stage1
+COPY stage1 /
+
+
+FROM base AS dependencies
+COPY --from=composer / /
+COPY --from=jq / /
+COPY --from=stage1 / /
+COPY stage2/app/custom/static-plugins /app/custom/static-plugins
 ARG APP_ENV
-ENV APP_ENV=${APP_ENV}
-
-
-FROM stage as stage1
-ADD production.tar.gz .
-
-
-FROM php as vendor-base
-COPY --from=composer /usr/bin/composer /usr/bin/composer
-ENV COMPOSER_ALLOW_SUPERUSER=1
-COPY --from=stage1 /srv .
+ENV APP_ENV=${APP_ENV} \
+    COMPOSER_ALLOW_SUPERUSER=1
 RUN composer remove --no-update --no-scripts shopware/recovery && \
-    composer require --no-install --no-scripts enqueue/amqp-bunny
-
-
-FROM catalyst as plugins-composer-files
-COPY app/custom/static-plugins /tmp/app/custom/static-plugins
-RUN [ -z "$(ls custom/static-plugins)" ] || cp -r --parents custom/static-plugins/*/composer.json /srv
-
-
-FROM vendor-base as vendor-plugins
-COPY --from=jq /usr/bin/jq /usr/bin/jq
-COPY --from=plugins-composer-files /srv .
-RUN [ -z "$(ls custom/static-plugins)" ] || for plugin in custom/static-plugins/*; do \
+    composer require --no-install --no-scripts enqueue/amqp-bunny && \
+    for plugin in custom/static-plugins/*; do \
      composer require --no-install --no-scripts $(jq -r '.name' "$plugin/composer.json"); \
     done
 
 
-FROM vendor-plugins as vendor-prod
+FROM dependencies AS vendor-prod
 RUN composer install --no-interaction --optimize-autoloader --no-scripts --no-dev
 
 
-FROM vendor-plugins as vendor-dev
+FROM dependencies AS vendor-dev
 RUN composer install --no-interaction --optimize-autoloader --no-scripts
 
 
-FROM vendor-${APP_ENV} as vendor
+FROM vendor-${APP_ENV} AS vendor
 
 
-FROM php as bundle-dump
-COPY --from=stage1 /srv .
-COPY --from=vendor /srv .
-COPY app/custom/static-plugins /srv/custom/static-plugins
+FROM vendor AS bundle-dump
 RUN bin/ci bundle:dump
 
 
-FROM stage as stage2
-COPY --from=stage1 /srv .
-COPY --from=vendor /srv .
-COPY --from=bundle-dump /srv/var/plugins.json ./var/plugins.json
+FROM stage AS stage2
+COPY stage2 /
+COPY --from=dependencies /app/composer.json /app/composer.lock ./
+COPY --from=vendor /app/vendor vendor
+COPY --from=bundle-dump /app/var/plugins.json var/plugins.json
 
 
-# TODO separate prod and dev assets?
-FROM node:${NODE_VERSION} as node
-WORKDIR /srv
-
-
-FROM catalyst as plugins-resources
-COPY app/custom/static-plugins /srv/custom/static-plugins
-RUN [ -z "$(ls custom/static-plugins)" ] || cp -r --parents custom/static-plugins/*/src/Resources/app /srv
-
-
-FROM node as compile-plugins-assets
-COPY --from=jq /usr/bin/jq /usr/bin/jq
-COPY --from=stage2 /srv .
-COPY --from=plugins-resources /srv .
+FROM base AS assets
+COPY --from=jq / /
+COPY --from=stage1 / /
+COPY --from=stage2 / /
 ENV CI=1 \
     SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS=1 \
     SHOPWARE_SKIP_BUNDLE_DUMP=1 \
@@ -130,25 +122,26 @@ ENV CI=1 \
 RUN bin/build-administration.sh
 
 
-FROM catalyst as plugins-assets
-COPY --from=compile-plugins-assets /srv/custom/static-plugins /tmp/app/custom/static-plugins
-RUN [ -z "$(ls custom/static-plugins)" ] || cp -r --parents custom/static-plugins/*/src/Resources/public /srv
+FROM stage AS stage3
+COPY stage3 /
+# FIXME automate
+COPY --from=assets /app/custom/static-plugins/FroshTools/src/Resources/public custom/static-plugins/FroshTools/src/Resources/public
 
 
-FROM stage as stage3
-COPY --from=stage2 /srv .
-COPY --from=plugins-assets /srv .
-COPY app .
-
-
-FROM php
-ARG USER_ID
-ARG GROUP_ID
-RUN addgroup -Sg ${GROUP_ID} app && adduser -Su ${USER_ID} app -G app
-USER ${USER_ID}:${GROUP_ID}
+FROM scratch
+COPY --from=stage0 / /
+COPY --from=stage1 --chown=www-data / /
+COPY --from=stage2 --chown=www-data / /
+COPY --from=stage3 --chown=www-data / /
+ENV PHP_INI_DIR=/usr/local/etc/php
+ENTRYPOINT ["docker-php-entrypoint"]
 WORKDIR /app
-COPY --from=stage3 --chown=${USER_ID}:${GROUP_ID} /srv .
-ENV APP_DEBUG="0" \
+STOPSIGNAL SIGQUIT
+EXPOSE 9000
+CMD ["php-fpm"]
+ARG APP_ENV
+ENV APP_ENV=${APP_ENV} \
+    APP_DEBUG="0" \
     SHOPWARE_ES_HOSTS="" \
     SHOPWARE_ES_ENABLED="0" \
     SHOPWARE_ES_INDEXING_ENABLED="0" \

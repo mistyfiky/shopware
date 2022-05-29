@@ -3,6 +3,10 @@ SHELL = /bin/bash
 .ONESHELL:
 .DEFAULT_GOAL := help
 
+export APP_ENV?=dev
+export SHOPWARE_VERSION=6.4.11.1
+export KANIKO_VERSION=1.8.1
+
 help:
 	@>&2 printf 'commands:\n'
 	@>&2 printf '\tTODO\n'
@@ -81,17 +85,22 @@ compose.phpstorm.dev.yml:
 	APP_ENV=dev docker compose --profile tools config | yq 'del(.services.cli.profiles)' >$@
 .PHONY: compose.phpstorm.dev.yml
 
-production.tar.gz:
-	mkdir -p production
-	wget https://github.com/shopware/production/archive/refs/tags/v6.4.11.1.tar.gz -O - | tar -xzvC production \
+stage1/app:
+	cd stage1
+	rm -fr app
+	mkdir app
+	wget https://github.com/shopware/production/archive/refs/tags/v$${SHOPWARE_VERSION}.tar.gz -O - | tar -xzvC app \
 	 --exclude */.github \
 	 --exclude */.gitlab-ci \
+	 --exclude */artifacts \
 	 --exclude */.dockerignore \
+	 --exclude */.gitignore \
 	 --exclude */.gitlab-ci.yml \
 	 --exclude */Dockerfile \
+	 --exclude */docker-compose.yml \
+	 --exclude */README.md \
 	 --strip-components 1
-	tar -czvf $@ -C production --owner=0 --group=0 --mtime='UTC 2001-01-01 00:00:00' .
-	rm -fr production
+.PHONY: stage1/app
 
 config.json:
 	@read -rp 'GitHub username: ' USER
@@ -99,14 +108,14 @@ config.json:
 	@echo -n "{\"auths\":{\"ghcr.io\":{\"auth\":\"$$(echo $$USERNAME:$$PASSWORD | base64)\"}}}" >$@
 
 kaniko: config.json
-	SHOPWARE_IMAGE=$$(APP_ENV=prod docker compose --profile platform config | yq '.services.shopware.image')
+	SHOPWARE_IMAGE=$$(docker compose --profile platform config | yq '.services.shopware.image')
 	docker run --rm -it \
 	 -v "$$(pwd)":/workspace \
 	 -v "$$(pwd)/config.json":/kaniko/.docker/config.json:ro \
-	 gcr.io/kaniko-project/executor:v1.8.1 \
+	 gcr.io/kaniko-project/executor:v$${KANIKO_VERSION} \
 	 --dockerfile=/workspace/Dockerfile \
 	 --context=dir:///workspace/ \
 	 --destination="$$SHOPWARE_IMAGE" \
 	 --cache=true \
-	 --build-arg APP_ENV=prod
+	 --build-arg APP_ENV="$$APP_ENV"
 .PHONY: kaniko

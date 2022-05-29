@@ -46,6 +46,9 @@ x-sw-defaults: &sw-defaults
   volumes:
     - "jwtdata:/app/config/jwt"
 
+x-cli-defaults: &cli-defaults
+  user: "www-data:www-data"
+
 services:
 
   kv:
@@ -111,18 +114,21 @@ services:
   consumer:
     <<: *platform-profile
     <<: *sw-defaults
+    <<: *cli-defaults
     command: "bin/console -n messenger:consume default --time-limit=60 --memory-limit=128M"
     restart: unless-stopped
 
   task-runner:
     <<: *platform-profile
     <<: *sw-defaults
+    <<: *cli-defaults
     command: "bin/console -n scheduled-task:run --time-limit=60 --memory-limit=128M"
     restart: unless-stopped
 
   install:
     <<: *tasks-profile
     <<: *sw-defaults
+    <<: *cli-defaults
     environment:
       <<: *sw-defaults-environment
       SHOP_NAME: "Storefront"
@@ -135,11 +141,13 @@ services:
   update:
     <<: *tasks-profile
     <<: *sw-defaults
+    <<: *cli-defaults
     command: "bin/wait-for-it.sh -s -t 60 -h db -p 3306 -- bin/update.sh"
 
   cli:
     <<: *tools-profile
     <<: *sw-defaults
+    <<: *cli-defaults
     command: "bash"
 
 volumes:

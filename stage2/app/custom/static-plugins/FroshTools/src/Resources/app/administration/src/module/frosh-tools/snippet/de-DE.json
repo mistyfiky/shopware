@@ -1,0 +1,120 @@
+{
+  "frosh-tools": {
+    "title": "Tools",
+    "tabs": {
+      "index": {
+        "title": "System-Status",
+        "performance": "Performance"
+      },
+      "systemInfo": {
+        "title": "System-Info"
+      },
+      "cache": {
+        "title": "Cache"
+      },
+      "scheduledTaskOverview": {
+        "title": "Geplante Aufgaben"
+      },
+      "queue": {
+        "title": "Warteschlange"
+      },
+      "elasticsearch": {
+        "title": "Elasticsearch"
+      },
+      "logs": {
+        "title": "Log viewer",
+        "logFileSelect": {
+          "placeholder": "Datei auswählen"
+        }
+      },
+      "files": {
+        "title": "Shopware Dateien Checker",
+        "allFilesOk": "Alle Dateien wurden nicht manipuliert",
+        "notOk": "Es gibt Dateien, die manipuliert wurden",
+        "openOriginal": "Öffne Originaldatei auf github",
+        "restore": {
+          "diff": "Vergleiche Datei mit Original",
+          "restoreFile": "Datei wiederherstellen"
+        }
+      },
+      "feature-flags": {
+        "title": "Feature Flags",
+        "flag": "Feature Flag",
+        "description": "Beschreibung",
+        "major": "Major",
+        "default": "Default",
+        "deactivate": "Deaktivieren",
+        "activate": "Aktivieren"
+      }
+    },
+    "clear": "Leeren",
+    "status": "Status",
+    "name": "Name",
+    "good": "Gut",
+    "warning": "Warnung",
+    "error": "Fehler",
+    "active": "Aktiv",
+    "used": "Belegt",
+    "free": "Frei",
+    "compileTheme": "Theme kompilieren",
+    "themeCompiled": "Theme wurde kompiliert",
+    "actions": "Aktionen",
+    "scheduledTasks": "Geplante Aufgaben",
+    "interval": "Intervall",
+    "lastExecutionTime": "letzte Ausführung",
+    "nextExecutionTime": "nächste Ausführung",
+    "runManually": "starte manuell",
+    "scheduledTaskStarted": "Die geplante Aufgabe für \"{name}\" wurde gestartet",
+    "scheduledTaskSucceed": "Die geplante Aufgabe für \"{name}\" war erfolgreich",
+    "scheduledTaskFailed": "Die geplante Aufgabe für \"{name}\" ist fehlgeschlagen",
+    "checker": {
+      "scheduledTaskGood": "Die geplanten Aufgaben laufen regelmäßig",
+      "scheduledTaskWarning": "Die geplanten Aufgaben laufen seit mehr als {minutes} Minuten nicht",
+      "mysqlError": "MySQL-Version kann nicht geprüft werden",
+      "mysqlDbVersion": "MySQL-Version",
+      "mysqlDbVersionError": "MySQL-Version hat technische Probleme",
+      "mysqlDbOutdated": "MySQL-Version ist veraltet",
+      "mariaDbVersion": "MariaDB-Version",
+      "phpOutdated": "PHP-Version ist veraltet",
+      "phpGood": "PHP-Version",
+      "maxExecutionTimeError": "Max-Execution-Time zu gering",
+      "maxExecutionTimeGood": "Max-Execution-Time",
+      "memoryLimitError": "Memory-Limit zu gering",
+      "memoryLimitGood": "Memory-Limit",
+      "zendOpcacheGood": "Zend Opcache ist aktiv",
+      "zendOpcacheWarning": "Zend Opcache ist nicht aktiv",
+      "queuesGood": "Warteschlange läuft regelmäßig",
+      "queuesWarning": "Warteschlange enthält Daten, die älter als 15 Minuten sind",
+      "not-prod": "Shop ist nicht im Produktivmodus",
+      "prodGood": "Shop ist im Produktivmodus",
+      "esGood": "Elasticsearch ist aktiviert",
+      "esWarning": "Elasticsearch ist deaktiviert",
+      "adminWorkerGood": "Admin-Worker ist deaktiviert",
+      "adminWorkerWarning": "Admin-Worker sollte deaktiviert sein",
+      "publicFilesystemGood": "PublicFilesystem ist nicht lokal",
+      "publicFilesystemWarning": "PublicFilesystem sollte nicht lokal sein",
+      "updateMailVarialesGood": "MailVariables werden nicht aktualisiert",
+      "updateMailVarialesWarning": "MailVariables sollten nicht aktualisiert werden",
+      "mailNotSendWithQueue": "Die Mails sollten im Hintergrund versendet werden",
+      "mailSendWithQueue": "Die Mails werden im Hintergrund versendet",
+      "incrementStorageIsDB": "Increment storage sollte im optimal fall Redis verwenden oder deaktiviert sein",
+      "incrementStorageIsNotDB": "Increment storage ist richtig konfiguriert",
+      "queueIsDefault": "Die Message Queue in der Datenbank skaliert nicht gut mit mehreren Workern",
+      "queueIsOk": "Die Message Queue ist richtig konfiguriert",
+      "fixCacheIdNotSet": "Eine feste Cache-ID sollte konfiguriert sein",
+      "fixCacheIdIsSet": "Eine feste Cache-ID ist konfiguriert",
+      "BusinessEventHandlerLevelGood": "BusinessEventHandler loggt keine Infos",
+      "BusinessEventHandlerLevelWarning": "BusinessEventHandler loggt alle Infos"
+    },
+    "size": "Größe",
+    "docs": "Dokumente",
+    "delete": "Löschen",
+    "resetQueue": "Queue zurücksetzen",
+    "date": "Zeitpunkt",
+    "channel": "Kanal",
+    "level": "Level",
+    "message": "Nachricht",
+    "current": "aktuell",
+    "recommended": "empfohlen"
+  }
+}
