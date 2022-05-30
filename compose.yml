@@ -49,6 +49,11 @@ x-sw-defaults: &sw-defaults
 x-cli-defaults: &cli-defaults
   user: "www-data:www-data"
 
+x-task-defaults: &task-defaults
+  depends_on:
+    permissions:
+      condition: service_started
+
 services:
 
   kv:
@@ -126,10 +131,16 @@ services:
     command: "bin/console -n scheduled-task:run --time-limit=60 --memory-limit=128M"
     restart: unless-stopped
 
+  permissions:
+    <<: *tasks-profile
+    <<: *sw-defaults
+    command: "chown -R www-data:www-data config/jwt"
+
   install:
     <<: *tasks-profile
     <<: *sw-defaults
     <<: *cli-defaults
+    <<: *task-defaults
     environment:
       <<: *sw-defaults-environment
       SHOP_NAME: "Storefront"
@@ -143,6 +154,7 @@ services:
     <<: *tasks-profile
     <<: *sw-defaults
     <<: *cli-defaults
+    <<: *task-defaults
     command: "bin/wait-for-it.sh -s -t 60 -h db -p 3306 -- bin/update.sh"
 
   cli:
