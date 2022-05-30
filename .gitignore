@@ -1,4 +1,4 @@
-/.app
+/app
 /compose.phpstorm.*.yml
 /config.json
 /dump.sql

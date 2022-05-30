@@ -81,7 +81,10 @@ COPY stage2/app/custom/static-plugins /app/custom/static-plugins
 ARG APP_ENV
 ENV APP_ENV=${APP_ENV} \
     COMPOSER_ALLOW_SUPERUSER=1
-RUN composer remove --no-update --no-scripts shopware/recovery && \
+ARG PHP_VERSION
+RUN composer config platform.php "$PHP_VERSION" && \
+    composer require --no-install --no-scripts php "$PHP_VERSION" && \
+    composer remove --no-update --no-scripts shopware/recovery && \
     composer require --no-install --no-scripts enqueue/amqp-bunny && \
     for plugin in custom/static-plugins/*; do \
      composer require --no-install --no-scripts $(jq -r '.name' "$plugin/composer.json"); \
@@ -134,6 +137,7 @@ COPY --from=stage0 / /
 
 
 FROM prod as dev
+COPY --from=composer / /
 COPY --from=node / /
 
 

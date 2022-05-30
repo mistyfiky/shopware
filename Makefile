@@ -70,8 +70,12 @@ cli:
 	docker compose run --rm cli
 .PHONY: cli
 
-.app:
-	docker cp -a "$$(docker compose run -d --no-deps --rm cli sleep 30)":/app $@
+app:
+	mkdir -p $@
+	CONTAINER_ID=$$(APP_ENV=dev docker compose run -d --no-deps --rm cli sleep 30)
+	docker cp -a "$$CONTAINER_ID":/app/composer.json $@
+	docker cp -a "$$CONTAINER_ID":/app/composer.lock $@
+	docker cp -a "$$CONTAINER_ID":/app/vendor $@/vendor
 
 dump.sql:
 	touch $@
