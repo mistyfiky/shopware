@@ -67,7 +67,6 @@ COPY stage0 /
 
 
 FROM stage0 AS base
-COPY --from=node / /
 
 
 FROM stage AS stage1
@@ -112,6 +111,7 @@ COPY --from=bundle-dump /app/var/plugins.json var/plugins.json
 
 
 FROM base AS assets
+COPY --from=node / /
 COPY --from=jq / /
 COPY --from=stage1 / /
 COPY --from=stage2 / /
@@ -128,8 +128,15 @@ COPY stage3 /
 COPY --from=assets /app/custom/static-plugins/FroshTools/src/Resources/public custom/static-plugins/FroshTools/src/Resources/public
 
 
-FROM scratch
+FROM scratch as prod
 COPY --from=stage0 / /
+
+
+FROM prod as dev
+COPY --from=node / /
+
+
+FROM ${APP_ENV}
 COPY --from=stage1 --chown=www-data / /
 COPY --from=stage2 --chown=www-data / /
 COPY --from=stage3 --chown=www-data / /

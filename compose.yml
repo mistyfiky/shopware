@@ -71,6 +71,7 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: "user"
       RABBITMQ_DEFAULT_PASS: "password"
+    hostname: "mq"
     image: "rabbitmq:3.10.0-management"
     ports:
       - "15672:15672"
