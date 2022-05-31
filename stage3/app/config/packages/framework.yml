@@ -8,4 +8,4 @@ framework:
   messenger:
     transports:
       default:
-        dsn: "enqueue://rabbitmq?queue[name]=shopware-queue"
+        dsn: "%env(resolve:RABBITMQ_DSN)%"

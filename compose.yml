@@ -1,7 +1,7 @@
 version: "3.8"
 
 x-platform-profile: &platform-profile
-  profiles: [ "platform" ]
+  profiles: [ "platform", "tools" ]
 
 x-tasks-profile: &tasks-profile
   profiles: [ "tasks" ]
@@ -48,11 +48,6 @@ x-sw-defaults: &sw-defaults
 
 x-cli-defaults: &cli-defaults
   user: "www-data:www-data"
-
-x-task-defaults: &task-defaults
-  depends_on:
-    permissions:
-      condition: service_started
 
 services:
 
@@ -140,7 +135,6 @@ services:
     <<: *tasks-profile
     <<: *sw-defaults
     <<: *cli-defaults
-    <<: *task-defaults
     environment:
       <<: *sw-defaults-environment
       SHOP_NAME: "Storefront"
@@ -154,7 +148,6 @@ services:
     <<: *tasks-profile
     <<: *sw-defaults
     <<: *cli-defaults
-    <<: *task-defaults
     command: "bin/wait-for-it.sh -s -t 60 -h db -p 3306 -- bin/update.sh"
 
   cli:
@@ -162,6 +155,24 @@ services:
     <<: *sw-defaults
     <<: *cli-defaults
     command: "bash"
+
+  watch-administration:
+    <<: *tools-profile
+    <<: *sw-defaults
+    <<: *cli-defaults
+    command: "bin/watch-administration.sh"
+    depends_on:
+      web:
+        condition: service_started
+    environment:
+      <<: *sw-defaults-environment
+      APP_URL: "http://web"
+      HOST: "0.0.0.0"
+      PORT: "8080"
+# FIXME localhost?
+#      SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS: "1"
+    ports:
+      - "8080:8080"
 
 volumes:
   kvdata:

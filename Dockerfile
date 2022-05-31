@@ -43,8 +43,7 @@ WORKDIR /app
 FROM php:${PHP_VERSION}-fpm-alpine AS php-base
 COPY --from=php-ext-installer / /
 RUN IPE_GD_WITHOUTAVIF=1 install-php-extensions curl dom fileinfo gd iconv intl json libxml mbstring openssl pcre pdo pdo_mysql phar simplexml sodium xml zip zlib
-RUN install-php-extensions apcu
-RUN install-php-extensions redis
+RUN install-php-extensions amqp apcu redis
 
 
 FROM php-base AS php-prod
@@ -58,22 +57,19 @@ RUN install-php-extensions xdebug
 
 FROM php-${APP_ENV} AS php
 RUN apk add --no-cache bash
+WORKDIR /app
 
 
 FROM stage AS stage0
-COPY --from=php / /
 # TODO separate base config files
 COPY stage0 /
-
-
-FROM stage0 AS base
 
 
 FROM stage AS stage1
 COPY stage1 /
 
 
-FROM base AS dependencies
+FROM php AS dependencies
 COPY --from=composer / /
 COPY --from=stage1 / /
 ARG APP_ENV
@@ -82,19 +78,28 @@ ENV APP_ENV=${APP_ENV} \
 ARG PHP_VERSION
 RUN composer config platform.php "$PHP_VERSION" && \
     composer require --no-install --no-scripts php "$PHP_VERSION" && \
-    composer remove --no-update --no-scripts shopware/recovery && \
-    composer require --no-install --no-scripts enqueue/amqp-bunny
+    composer remove --no-update --no-scripts shopware/recovery
 # FIXME automate
 COPY stage2/app/custom/static-plugins/FroshTools/composer.json custom/static-plugins/FroshTools/composer.json
-COPY stage2/app/custom/static-plugins/FroshTools/src/FroshTools.php custom/static-plugins/FroshTools/src/FroshTools.php
 RUN composer require --no-install --no-scripts frosh/tools:0.1.7
 
 
-FROM dependencies AS vendor-prod
+FROM php AS vendor-base
+COPY --from=composer / /
+COPY --from=stage1 / /
+COPY --from=dependencies /app/composer.json /app/composer.lock ./
+ARG APP_ENV
+ENV APP_ENV=${APP_ENV} \
+    COMPOSER_ALLOW_SUPERUSER=1
+# FIXME automate
+COPY stage2/app/custom/static-plugins/FroshTools/composer.json custom/static-plugins/FroshTools/composer.json
+
+
+FROM vendor-base AS vendor-prod
 RUN composer install --no-interaction --optimize-autoloader --no-scripts --no-dev
 
 
-FROM dependencies AS vendor-dev
+FROM vendor-base AS vendor-dev
 RUN composer install --no-interaction --optimize-autoloader --no-scripts
 
 
@@ -113,8 +118,9 @@ COPY --from=vendor /app/vendor vendor
 COPY --from=bundle-dump /app/var/plugins.json var/plugins.json
 
 
-FROM vendor AS node_modules
+FROM php AS node_modules
 COPY --from=node / /
+COPY --from=vendor /app/vendor vendor
 ENV PUPPETEER_SKIP_DOWNLOAD=1
 RUN npm clean-install --prefix vendor/shopware/administration/Resources/app/administration
 # FIXME automate
@@ -124,7 +130,7 @@ COPY stage2/app/custom/static-plugins/FroshTools/src/Resources/app/administratio
 RUN npm clean-install --prefix custom/static-plugins/FroshTools/src/Resources/app/administration
 
 
-FROM base AS assets
+FROM php AS assets
 COPY --from=node / /
 COPY --from=stage1 / /
 COPY --from=stage2 / /
@@ -143,17 +149,22 @@ COPY stage3 /
 COPY --from=assets /app/custom/static-plugins/FroshTools/src/Resources/public custom/static-plugins/FroshTools/src/Resources/public
 
 
-FROM scratch AS prod
+FROM scratch AS base
+COPY --from=php / /
 COPY --from=stage0 / /
 
 
-FROM prod AS dev
+FROM base AS prod
+
+
+FROM base AS dev
 COPY --from=composer / /
 COPY --from=node / /
 COPY --from=jq / /
 # FIXME npm cache
-COPY --from=node_modules /app/vendor/shopware/administration/Resources/app/administration/node_modules vendor/shopware/administration/Resources/app/administration/node_modules
-COPY --from=node_modules /app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
+ONBUILD COPY --from=node_modules --chown=www-data /app/vendor/shopware/administration/Resources/app/administration/node_modules /app/vendor/shopware/administration/Resources/app/administration/node_modules
+# FIXME automate
+ONBUILD COPY --from=node_modules --chown=www-data /app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules /app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
 
 
 FROM ${APP_ENV}

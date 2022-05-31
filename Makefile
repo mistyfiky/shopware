@@ -19,7 +19,7 @@ urls:
 	 'storefront' 'http://localhost:8000' '- : -' \
 	 'storefront-watch' 'http://localhost:????' '- : -' \
 	 'administration' 'http://localhost:8000/admin' 'admin : password' \
-	 'administration-watch' 'http://localhost:3000' 'admin : password' \
+	 'administration-watch' 'http://localhost:8080' 'admin : password' \
 	 'minio' 'http://localhost:9001' 'user : password' \
 	 'rabbitmq' 'http://localhost:15672' 'user : password' \
 	 'mailhog' 'http://localhost:8025' '- : -'
@@ -59,20 +59,28 @@ recreate: dump.sql
 	docker compose --profile platform up -d --remove-orphans --force-recreate
 .PHONY: recreate
 
-install: dump.sql
+permissions:
+	docker compose run --rm permissions
+.PHONY: permissions
+
+install: dump.sql permissions
 	docker compose run --rm install
 .PHONY: install
 
-update: dump.sql
+update: dump.sql permissions
 	docker compose run --rm update
 .PHONY: update
 
-reinstall: build down install
+reinstall: down install
 .PHONY: reinstall
 
 cli:
 	docker compose run --rm cli
 .PHONY: cli
+
+watch-administration:
+	docker compose run --rm --service-ports watch-administration
+.PHONY: watch-administration
 
 app:
 	mkdir -p $@
