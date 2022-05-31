@@ -39,6 +39,10 @@ build:
 	docker compose --profile platform --profile tasks --profile tools build
 .PHONY: build
 
+build-plain:
+	docker compose --profile platform --profile tasks --profile tools build --progress plain
+.PHONY: build
+
 up: dump.sql
 	docker compose --profile platform up -d --remove-orphans
 .PHONY: up

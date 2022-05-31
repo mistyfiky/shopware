@@ -1,12 +1,12 @@
-ARG PROJECT_REPO=https://github.com/mistyfiky/shopware
 ARG PHP_EXT_INSTALLER_VERSION=1.5.12
 ARG COMPOSER_VERSION=2.3.5
-ARG JQ_VERSION=1.5
 ARG PHP_VERSION=8.1.5
 ARG APP_ENV=dev
 ARG NODE_VERSION=16.15.0
+ARG JQ_VERSION=1.5
 ARG USER_ID=1000
 ARG GROUP_ID=1000
+ARG PROJECT_REPO=https://github.com/mistyfiky/shopware
 
 
 FROM mlocati/php-extension-installer:${PHP_EXT_INSTALLER_VERSION} AS php-ext-installer-img
@@ -30,8 +30,8 @@ COPY --from=node-img /usr/local/bin /usr/local/bin
 
 FROM bash AS jq-img
 ARG JQ_VERSION
-ADD https://github.com/stedolan/jq/releases/download/jq-${JQ_VERSION}/jq-linux64 /usr/bin/jq
-RUN chmod 755 /usr/bin/jq
+RUN wget -O /usr/bin/jq https://github.com/stedolan/jq/releases/download/jq-${JQ_VERSION}/jq-linux64 && \
+    chmod 755 /usr/bin/jq
 FROM scratch AS jq
 COPY --from=jq-img /usr/bin/jq /usr/bin/jq
 
@@ -40,18 +40,18 @@ FROM scratch AS stage
 WORKDIR /app
 
 
-FROM php:${PHP_VERSION}-fpm-alpine AS base
+FROM php:${PHP_VERSION}-fpm-alpine AS php-base
 COPY --from=php-ext-installer / /
 RUN IPE_GD_WITHOUTAVIF=1 install-php-extensions curl dom fileinfo gd iconv intl json libxml mbstring openssl pcre pdo pdo_mysql phar simplexml sodium xml zip zlib
 RUN install-php-extensions apcu
 RUN install-php-extensions redis
 
 
-FROM base AS php-prod
+FROM php-base AS php-prod
 RUN install-php-extensions opcache
 
 
-FROM base AS php-dev
+FROM php-base AS php-dev
 # TODO add xdebug config
 RUN install-php-extensions xdebug
 
@@ -75,9 +75,7 @@ COPY stage1 /
 
 FROM base AS dependencies
 COPY --from=composer / /
-COPY --from=jq / /
 COPY --from=stage1 / /
-COPY stage2/app/custom/static-plugins /app/custom/static-plugins
 ARG APP_ENV
 ENV APP_ENV=${APP_ENV} \
     COMPOSER_ALLOW_SUPERUSER=1
@@ -85,10 +83,11 @@ ARG PHP_VERSION
 RUN composer config platform.php "$PHP_VERSION" && \
     composer require --no-install --no-scripts php "$PHP_VERSION" && \
     composer remove --no-update --no-scripts shopware/recovery && \
-    composer require --no-install --no-scripts enqueue/amqp-bunny && \
-    for plugin in custom/static-plugins/*; do \
-     composer require --no-install --no-scripts $(jq -r '.name' "$plugin/composer.json"); \
-    done
+    composer require --no-install --no-scripts enqueue/amqp-bunny
+# FIXME automate
+COPY stage2/app/custom/static-plugins/FroshTools/composer.json custom/static-plugins/FroshTools/composer.json
+COPY stage2/app/custom/static-plugins/FroshTools/src/FroshTools.php custom/static-plugins/FroshTools/src/FroshTools.php
+RUN composer require --no-install --no-scripts frosh/tools:0.1.7
 
 
 FROM dependencies AS vendor-prod
@@ -103,6 +102,7 @@ FROM vendor-${APP_ENV} AS vendor
 
 
 FROM vendor AS bundle-dump
+COPY stage2/app/custom/static-plugins custom/static-plugins
 RUN bin/ci bundle:dump
 
 
@@ -113,17 +113,28 @@ COPY --from=vendor /app/vendor vendor
 COPY --from=bundle-dump /app/var/plugins.json var/plugins.json
 
 
+FROM vendor AS node_modules
+COPY --from=node / /
+ENV PUPPETEER_SKIP_DOWNLOAD=1
+RUN npm clean-install --prefix vendor/shopware/administration/Resources/app/administration
+# FIXME automate
+COPY stage2/app/custom/static-plugins/FroshTools/src/Resources/app/administration/package.json \
+     stage2/app/custom/static-plugins/FroshTools/src/Resources/app/administration/package-lock.json \
+     custom/static-plugins/FroshTools/src/Resources/app/administration/
+RUN npm clean-install --prefix custom/static-plugins/FroshTools/src/Resources/app/administration
+
+
 FROM base AS assets
 COPY --from=node / /
-COPY --from=jq / /
 COPY --from=stage1 / /
 COPY --from=stage2 / /
-ENV CI=1 \
-    SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS=1 \
-    SHOPWARE_SKIP_BUNDLE_DUMP=1 \
-    SHOPWARE_SKIP_ASSET_COPY=1 \
-    PUPPETEER_SKIP_DOWNLOAD=1
-RUN bin/build-administration.sh
+COPY --from=node_modules /app/vendor/shopware/administration/Resources/app/administration/node_modules vendor/shopware/administration/Resources/app/administration/node_modules
+# FIXME automate
+COPY --from=node_modules /app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
+WORKDIR /app/vendor/shopware/administration/Resources/app/administration
+ENV PROJECT_ROOT=/app \
+    SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS=1
+RUN npm run build
 
 
 FROM stage AS stage3
@@ -132,13 +143,17 @@ COPY stage3 /
 COPY --from=assets /app/custom/static-plugins/FroshTools/src/Resources/public custom/static-plugins/FroshTools/src/Resources/public
 
 
-FROM scratch as prod
+FROM scratch AS prod
 COPY --from=stage0 / /
 
 
-FROM prod as dev
+FROM prod AS dev
 COPY --from=composer / /
 COPY --from=node / /
+COPY --from=jq / /
+# FIXME npm cache
+COPY --from=node_modules /app/vendor/shopware/administration/Resources/app/administration/node_modules vendor/shopware/administration/Resources/app/administration/node_modules
+COPY --from=node_modules /app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
 
 
 FROM ${APP_ENV}
