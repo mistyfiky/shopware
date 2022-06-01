@@ -168,11 +168,11 @@ services:
       <<: *sw-defaults-environment
       APP_URL: "http://web"
       HOST: "0.0.0.0"
-      PORT: "8080"
+      PORT: "80"
 # FIXME localhost?
 #      SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS: "1"
     ports:
-      - "8080:8080"
+      - "8080:80"
 
 volumes:
   kvdata:
