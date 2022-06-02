@@ -60,9 +60,8 @@ stop:
 .PHONY: stop
 
 urls:
-	@>&2 printf '%20s %-28s%s\n' \
+	@>&2 printf '%20s %-30s%s\n' \
 	 'storefront' 'http://localhost:8000' '- : -' \
-	 'storefront-watch' 'http://localhost:????' '- : -' \
 	 'administration' 'http://localhost:8000/admin' 'admin : password' \
 	 'administration-watch' 'http://localhost:8080' 'admin : password' \
 	 'minio' 'http://localhost:9001' 'user : password' \
@@ -71,7 +70,7 @@ urls:
 .PHONY: urls
 
 prod dev:
-	sed -i "s/APP_ENV=.*/APP_ENV=$@/" .env
+	[ "$$APP_ENV" = "$@" ] || sed -i "s/APP_ENV=.*/APP_ENV=$@/" .env
 .PHONY: prod dev
 
 recreate: dump.sql
@@ -86,7 +85,7 @@ clean:
 	rm -f dump_*.sql
 .PHONY: clean
 
-purge: down
+purge: down purge-shadow
 	rm -f .env
 	rm -f dump.sql
 	rm -fr app
@@ -118,19 +117,32 @@ kaniko: config.json
 	 --build-arg APP_ENV="$$APP_ENV"
 .PHONY: kaniko
 
+dump.sql:
+	touch $@
+
 permissions:
 	docker compose run --rm permissions
 .PHONY: permissions
 
+purge-shadow:
+	PURGE_SHADOW_FILE=$$(find . -user root -type f | sort -r); [ -z "$$PURGE_SHADOW_FILE" ] || echo "$$PURGE_SHADOW_FILE" | xargs rm
+	PURGE_SHADOW_DIRS=$$(find . -user root -type d | sort -r); [ -z "$$PURGE_SHADOW_DIRS" ] || echo "$$PURGE_SHADOW_DIRS" | xargs rmdir
+.PHONY: purge-shadow
+
 app:
 	mkdir -p $@
-	CONTAINER_ID=$$(APP_ENV=dev docker compose run -d --no-deps --rm cli sleep 30)
+	# FIXME prod
+	SHOPWARE_IMAGE=$$(APP_ENV=dev docker compose --profile platform config | yq '.services.shopware.image')
+	CONTAINER_ID=$$(docker run -d --rm $$SHOPWARE_IMAGE sleep 30)
 	docker cp -a "$$CONTAINER_ID":/app/composer.json $@
 	docker cp -a "$$CONTAINER_ID":/app/composer.lock $@
 	docker cp -a "$$CONTAINER_ID":/app/vendor $@/vendor
-
-dump.sql:
-	touch $@
+	mkdir -p $@/var
+	docker cp -a "$$CONTAINER_ID":/app/var/plugins.json $@/var/plugins.json
+	# FIXME prod
+	# TODO automate
+	mkdir -p $@/custom/static-plugins/FroshTools/src/Resources/app/administration
+	docker cp -a "$$CONTAINER_ID":/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules $@/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
 
 config.json:
 	@read -rp 'GitHub username: ' USER

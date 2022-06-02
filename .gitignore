@@ -1,6 +1,12 @@
 /.env
 /app
-/compose.ide.*.yml
+/compose.ide.dev.yml
 /config.json
 /dump.sql
 /dump_*.sql
+
+/stage1/app/install.lock
+/stage1/app/config/services/custom.xml
+/stage1/app/bin/wait-for-it.sh
+/stage1/app/bin/update.sh
+/stage1/app/bin/install.sh

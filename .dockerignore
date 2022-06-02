@@ -1,5 +1,12 @@
 /*
 !/stage0
 !/stage1
+/stage1/app/install.lock
+/stage1/app/config/services/custom.xml
+/stage1/app/bin/wait-for-it.sh
+/stage1/app/bin/update.sh
+/stage1/app/bin/install.sh
 !/stage2
+# TODO automate
+/stage2/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
 !/stage3

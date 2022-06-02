@@ -1,2 +1,5 @@
-[ -f .env ] || APP_ENV="${APP_ENV:-dev}" envsubst <.env.dist >.env
+APP_ENV="${APP_ENV:-dev}"
+USER_ID="${USER_ID:-$(id -u)}"
+GROUP_ID="${GROUP_ID:-$(id -g)}"
+[ -f .env ] || APP_ENV=${APP_ENV} USER_ID=${USER_ID} GROUP_ID=${GROUP_ID} envsubst <.env.dist >.env
 . ./.env

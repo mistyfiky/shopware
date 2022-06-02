@@ -161,16 +161,21 @@ FROM base AS dev
 COPY --from=composer / /
 COPY --from=node / /
 COPY --from=jq / /
+ARG USER_ID
+ARG GROUP_ID
 # FIXME npm cache
-ONBUILD COPY --from=node_modules --chown=www-data /app/vendor/shopware/administration/Resources/app/administration/node_modules /app/vendor/shopware/administration/Resources/app/administration/node_modules
+ONBUILD COPY --from=node_modules --chown=${USER_ID}:${GROUP_ID} /app/vendor/shopware/administration/Resources/app/administration/node_modules /app/vendor/shopware/administration/Resources/app/administration/node_modules
 # FIXME automate
-ONBUILD COPY --from=node_modules --chown=www-data /app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules /app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
+ONBUILD COPY --from=node_modules --chown=${USER_ID}:${GROUP_ID} /app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules /app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
 
 
 FROM ${APP_ENV}
-COPY --from=stage1 --chown=www-data / /
-COPY --from=stage2 --chown=www-data / /
-COPY --from=stage3 --chown=www-data / /
+ARG USER_ID
+ARG GROUP_ID
+COPY --from=stage1 --chown=${USER_ID}:${GROUP_ID} / /
+COPY --from=stage2 --chown=${USER_ID}:${GROUP_ID} / /
+COPY --from=stage3 --chown=${USER_ID}:${GROUP_ID} / /
+USER ${USER_ID}:${GROUP_ID}
 ENV PHP_INI_DIR=/usr/local/etc/php
 ENTRYPOINT ["docker-php-entrypoint"]
 WORKDIR /app
