@@ -48,11 +48,12 @@ RUN install-php-extensions amqp apcu redis
 
 FROM php-base AS php-prod
 RUN install-php-extensions opcache
+RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
 
 FROM php-base AS php-dev
-# TODO add xdebug config
 RUN install-php-extensions xdebug
+RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
 
 
 FROM php-${APP_ENV} AS php
@@ -61,7 +62,6 @@ WORKDIR /app
 
 
 FROM stage AS stage0
-# TODO separate base config files
 COPY stage0 /
 
 

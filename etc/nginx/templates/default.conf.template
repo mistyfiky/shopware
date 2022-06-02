@@ -1,6 +1,8 @@
 server {
     listen  80;
 
+    server_name localhost;
+
     root /app/public;
 
     location / {
@@ -8,6 +10,7 @@ server {
     }
 
     location ~ ^/.+\.php(/|$) {
+        fastcgi_param SERVER_NAME $host;
         fastcgi_pass ${NGINX_FASTCGI_PASS};
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;

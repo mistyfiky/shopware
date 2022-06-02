@@ -33,7 +33,7 @@ x-sw-defaults: &sw-defaults
     REDIS_LOCK_DSN: "redis://kv:6379/3"
     REDIS_NUMBER_DSN: "redis://kv:6379/4"
     RABBITMQ_DSN: "amqp://user:password@mq:5672/%2F"
-    S3_URL: "http://localhost:9000/shopware"
+    S3_URL: "http://localhost:9090/shopware"
     S3_BUCKET: "shopware"
     S3_REGION: "local"
     S3_ENDPOINT: "http://s3:9000"
@@ -44,12 +44,14 @@ x-sw-defaults: &sw-defaults
     MAILER_URL: "smtp://mh:1025"
     APP_SECRET: "def0000038180dd6c4c4f8dde634d596f339cfc983efba7c00ecc69d7c17212a82802f8efc96aa655fde68771b809f364d2ac9f34ee16f71aa4b40fdf13000b8edcfa281"
     INSTANCE_ID: "OZv3IMXVJkrNdXsoyBGYKRcvyaMlYCCh"
+    PHP_IDE_CONFIG: "serverName=localhost"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
   image: "ghcr.io/mistyfiky/shopware/${APP_ENV?}:latest"
   volumes:
     - "jwtdata:/app/config/jwt"
     - "./stage1/app/bin:/app/bin"
     - "./stage1/app/config:/app/config"
-    - "./stage1/app/public/index.php:/app/public/index.php"
     - "./stage1/app/src:/app/src"
     # TODO automate
     - "./stage2/app/custom/static-plugins/FroshTools:/app/custom/static-plugins/FroshTools"
@@ -63,6 +65,7 @@ x-sw-defaults: &sw-defaults
     - "./stage3/app/install.lock:/app/install.lock"
     - "./app/composer.json:/app/composer.json"
     - "./app/composer.lock:/app/composer.lock"
+    - "./app/public:/app/public"
     - "./app/vendor:/app/vendor"
     - "./app/var/plugins.json:/app/var/plugins.json"
     # FIXME prod
@@ -105,7 +108,7 @@ services:
       MINIO_DEFAULT_BUCKETS: "shopware:public"
     image: "bitnami/minio:2022.5.8"
     ports:
-      - "9000:9000"
+      - "9090:9000"
       - "9001:9001"
     volumes:
       - "s3data:/data"

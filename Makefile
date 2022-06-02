@@ -100,8 +100,8 @@ cli:
 	docker compose run --rm cli
 .PHONY: cli
 
-ide: app
-	APP_ENV=dev docker compose --profile tools config | yq 'del(.services.cli.profiles)' >compose.ide.dev.yml
+ide:
+	APP_ENV=dev docker-compose --profile tools config | yq 'del(.services.cli.profiles)' >compose.ide.dev.yml
 .PHONY: ide
 
 kaniko: config.json
@@ -125,8 +125,8 @@ permissions:
 .PHONY: permissions
 
 purge-shadow:
-	PURGE_SHADOW_FILE=$$(find . -user root -type f | sort -r); [ -z "$$PURGE_SHADOW_FILE" ] || echo "$$PURGE_SHADOW_FILE" | xargs rm
-	PURGE_SHADOW_DIRS=$$(find . -user root -type d | sort -r); [ -z "$$PURGE_SHADOW_DIRS" ] || echo "$$PURGE_SHADOW_DIRS" | xargs rmdir
+	PURGE_SHADOW_FILE=$$(find . -user root -type f | sort -r); [ -z "$$PURGE_SHADOW_FILE" ] || echo "$$PURGE_SHADOW_FILE" | xargs sudo rm
+	PURGE_SHADOW_DIRS=$$(find . -user root -type d | sort -r); [ -z "$$PURGE_SHADOW_DIRS" ] || echo "$$PURGE_SHADOW_DIRS" | xargs sudo rmdir
 .PHONY: purge-shadow
 
 app:
@@ -136,13 +136,17 @@ app:
 	CONTAINER_ID=$$(docker run -d --rm $$SHOPWARE_IMAGE sleep 30)
 	docker cp -a "$$CONTAINER_ID":/app/composer.json $@
 	docker cp -a "$$CONTAINER_ID":/app/composer.lock $@
-	docker cp -a "$$CONTAINER_ID":/app/vendor $@/vendor
+	mkdir -p $@/public
+	docker cp -a "$$CONTAINER_ID":/app/public $@
+	mkdir -p $@/vendor
+	docker cp -a "$$CONTAINER_ID":/app/vendor $@
 	mkdir -p $@/var
 	docker cp -a "$$CONTAINER_ID":/app/var/plugins.json $@/var/plugins.json
 	# FIXME prod
 	# TODO automate
-	mkdir -p $@/custom/static-plugins/FroshTools/src/Resources/app/administration
-	docker cp -a "$$CONTAINER_ID":/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules $@/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
+	mkdir -p $@/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
+	docker cp -a "$$CONTAINER_ID":/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules $@/custom/static-plugins/FroshTools/src/Resources/app/administration
+.PHONY: app
 
 config.json:
 	@read -rp 'GitHub username: ' USER
