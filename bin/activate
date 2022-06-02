@@ -1,0 +1,2 @@
+[ -f .env ] || APP_ENV="${APP_ENV:-dev}" envsubst <.env.dist >.env
+. ./.env

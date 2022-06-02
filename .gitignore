@@ -1,5 +1,6 @@
+/.env
 /app
-/compose.phpstorm.*.yml
+/compose.ide.*.yml
 /config.json
 /dump.sql
 /dump_*.sql
