@@ -47,7 +47,7 @@ down:
 	docker compose --profile platform down --remove-orphans --rmi local -v
 .PHONY: down
 
-install: dump.sql permissions
+install: dump.sql app permissions
 	docker compose run --rm install
 .PHONY: install
 
@@ -73,11 +73,11 @@ prod dev:
 	[ "$$APP_ENV" = "$@" ] || sed -i "s/APP_ENV=.*/APP_ENV=$@/" .env
 .PHONY: prod dev
 
-recreate: dump.sql
+recreate: dump.sql app
 	docker compose --profile platform up -d --remove-orphans --force-recreate
 .PHONY: recreate
 
-update: dump.sql permissions
+update: dump.sql app permissions
 	docker compose run --rm update
 .PHONY: update
 
@@ -87,6 +87,7 @@ clean:
 
 purge: down purge-shadow
 	rm -f .env
+	rm -f config.json
 	rm -f dump.sql
 	rm -fr app
 	rm -f compose.ide.dev.yml
@@ -125,7 +126,12 @@ permissions:
 .PHONY: permissions
 
 purge-shadow:
-	PURGE_SHADOW_FILE=$$(find . -user root -type f | sort -r); [ -z "$$PURGE_SHADOW_FILE" ] || echo "$$PURGE_SHADOW_FILE" | xargs sudo rm
+	# TODO automate
+	rm -f \
+	 stage1/app/config/services/custom.xml \
+	 stage1/app/bin/wait-for-it.sh \
+	 stage1/app/bin/update.sh \
+	 stage1/app/bin/install.sh
 	PURGE_SHADOW_DIRS=$$(find . -user root -type d | sort -r); [ -z "$$PURGE_SHADOW_DIRS" ] || echo "$$PURGE_SHADOW_DIRS" | xargs sudo rmdir
 .PHONY: purge-shadow
 
@@ -133,7 +139,7 @@ app:
 	mkdir -p $@
 	# FIXME prod
 	SHOPWARE_IMAGE=$$(APP_ENV=dev docker compose --profile platform config | yq '.services.shopware.image')
-	CONTAINER_ID=$$(docker run -d --rm $$SHOPWARE_IMAGE sleep 30)
+	CONTAINER_ID=$$(docker run -d --rm $$SHOPWARE_IMAGE sleep 60)
 	docker cp -a "$$CONTAINER_ID":/app/composer.json $@
 	docker cp -a "$$CONTAINER_ID":/app/composer.lock $@
 	mkdir -p $@/public
