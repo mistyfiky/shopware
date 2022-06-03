@@ -174,7 +174,8 @@ ARG USER_ID
 ARG GROUP_ID
 COPY --from=stage1 --chown=${USER_ID}:${GROUP_ID} / /
 COPY --from=stage2 --chown=${USER_ID}:${GROUP_ID} / /
-COPY --from=stage3 --chown=${USER_ID}:${GROUP_ID} / /
+COPY --from=stage3 /usr /usr
+COPY --from=stage3 --chown=${USER_ID}:${GROUP_ID} /app /app
 USER ${USER_ID}:${GROUP_ID}
 ENV PHP_INI_DIR=/usr/local/etc/php
 ENTRYPOINT ["docker-php-entrypoint"]

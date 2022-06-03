@@ -150,6 +150,8 @@ app:
 	docker cp -a "$$CONTAINER_ID":/app/var/plugins.json $@/var/plugins.json
 	# FIXME prod
 	# TODO automate
+	mkdir -p $@/custom/static-plugins/FroshTools/src/Resources/public
+	docker cp -a "$$CONTAINER_ID":/app/custom/static-plugins/FroshTools/src/Resources/public $@/custom/static-plugins/FroshTools/src/Resources
 	mkdir -p $@/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
 	docker cp -a "$$CONTAINER_ID":/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules $@/custom/static-plugins/FroshTools/src/Resources/app/administration
 .PHONY: app

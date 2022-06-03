@@ -70,6 +70,7 @@ x-sw-defaults: &sw-defaults
     - "./app/var/plugins.json:/app/var/plugins.json"
     # FIXME prod
     # TODO automate
+    - "./app/custom/static-plugins/FroshTools/src/Resources/public:/app/custom/static-plugins/FroshTools/src/Resources/public"
     - "./app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules:/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules"
 
 services:
