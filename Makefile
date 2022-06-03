@@ -47,7 +47,7 @@ down:
 	docker compose --profile platform down --remove-orphans --rmi local -v
 .PHONY: down
 
-install: dump.sql app permissions
+install: dump.sql stageX/app permissions
 	docker compose run --rm install
 .PHONY: install
 
@@ -73,11 +73,11 @@ prod dev:
 	[ "$$APP_ENV" = "$@" ] || sed -i "s/APP_ENV=.*/APP_ENV=$@/" .env
 .PHONY: prod dev
 
-recreate: dump.sql app
+recreate: dump.sql stageX/app
 	docker compose --profile platform up -d --remove-orphans --force-recreate
 .PHONY: recreate
 
-update: dump.sql app permissions
+update: dump.sql stageX/app permissions
 	docker compose run --rm update
 .PHONY: update
 
@@ -86,11 +86,11 @@ clean:
 .PHONY: clean
 
 purge: down purge-shadow
+	rm -fr stageX
 	rm -f .env
+	rm -f compose.ide.dev.yml
 	rm -f config.json
 	rm -f dump.sql
-	rm -fr app
-	rm -f compose.ide.dev.yml
 .PHONY: purge
 
 watch-administration:
@@ -135,7 +135,7 @@ purge-shadow:
 	PURGE_SHADOW_DIRS=$$(find . -user root -type d | sort -r); [ -z "$$PURGE_SHADOW_DIRS" ] || echo "$$PURGE_SHADOW_DIRS" | xargs sudo rmdir
 .PHONY: purge-shadow
 
-app:
+stageX/app:
 	mkdir -p $@
 	# FIXME prod
 	SHOPWARE_IMAGE=$$(APP_ENV=dev docker compose --profile platform config | yq '.services.shopware.image')
@@ -154,7 +154,7 @@ app:
 	docker cp -a "$$CONTAINER_ID":/app/custom/static-plugins/FroshTools/src/Resources/public $@/custom/static-plugins/FroshTools/src/Resources
 	mkdir -p $@/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
 	docker cp -a "$$CONTAINER_ID":/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules $@/custom/static-plugins/FroshTools/src/Resources/app/administration
-.PHONY: app
+.PHONY: stageX/app
 
 config.json:
 	@read -rp 'GitHub username: ' USER

@@ -33,7 +33,7 @@ x-sw-defaults: &sw-defaults
     REDIS_LOCK_DSN: "redis://kv:6379/3"
     REDIS_NUMBER_DSN: "redis://kv:6379/4"
     RABBITMQ_DSN: "amqp://user:password@mq:5672/%2F"
-    S3_URL: "http://localhost:9090/shopware"
+    S3_URL: "http://localhost:9000/shopware"
     S3_BUCKET: "shopware"
     S3_REGION: "local"
     S3_ENDPOINT: "http://s3:9000"
@@ -63,15 +63,15 @@ x-sw-defaults: &sw-defaults
     - "./stage3/app/config/services.xml:/app/config/services.xml"
     - "./stage3/app/.env:/app/.env"
     - "./stage3/app/install.lock:/app/install.lock"
-    - "./app/composer.json:/app/composer.json"
-    - "./app/composer.lock:/app/composer.lock"
-    - "./app/public:/app/public"
-    - "./app/vendor:/app/vendor"
-    - "./app/var/plugins.json:/app/var/plugins.json"
+    - "./stageX/app/composer.json:/app/composer.json"
+    - "./stageX/app/composer.lock:/app/composer.lock"
+    - "./stageX/app/public:/app/public"
+    - "./stageX/app/vendor:/app/vendor"
+    - "./stageX/app/var/plugins.json:/app/var/plugins.json"
     # FIXME prod
     # TODO automate
-    - "./app/custom/static-plugins/FroshTools/src/Resources/public:/app/custom/static-plugins/FroshTools/src/Resources/public"
-    - "./app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules:/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules"
+    - "./stageX/app/custom/static-plugins/FroshTools/src/Resources/public:/app/custom/static-plugins/FroshTools/src/Resources/public"
+    - "./stageX/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules:/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules"
 
 services:
 
@@ -109,7 +109,7 @@ services:
       MINIO_DEFAULT_BUCKETS: "shopware:public"
     image: "bitnami/minio:2022.5.8"
     ports:
-      - "9090:9000"
+      - "9000:9000"
       - "9001:9001"
     volumes:
       - "s3data:/data"
