@@ -142,8 +142,7 @@ purge-shadow :
 
 stageX/app : compose.yml
 	mkdir -p $@
-	# FIXME prod
-	SHOPWARE_IMAGE=$$(APP_ENV=dev docker compose --profile platform config | yq '.services.shopware.image')
+	SHOPWARE_IMAGE=$$(docker compose --profile platform config | yq '.services.shopware.image')
 	CONTAINER_ID=$$(docker run -d --rm $$SHOPWARE_IMAGE sleep 60)
 	docker cp -a "$$CONTAINER_ID":/app/composer.json $@
 	docker cp -a "$$CONTAINER_ID":/app/composer.lock $@
@@ -153,12 +152,11 @@ stageX/app : compose.yml
 	docker cp -a "$$CONTAINER_ID":/app/vendor $@
 	mkdir -p $@/var
 	docker cp -a "$$CONTAINER_ID":/app/var/plugins.json $@/var/plugins.json
-	# FIXME prod
 	for name in $$(yq '.static-plugins[].name' <plugins.yml); do
 	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/public"
 	 docker cp -a "$${CONTAINER_ID}:/app/custom/static-plugins/$${name}/src/Resources/public" "$@/custom/static-plugins/$${name}/src/Resources"
 	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules"
-	 docker cp -a "$${CONTAINER_ID}:/app/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules" "$@/custom/static-plugins/$${name}/src/Resources/app/administration"
+	 [ "dev" != "$$APP_ENV" ] || docker cp -a "$${CONTAINER_ID}:/app/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules" "$@/custom/static-plugins/$${name}/src/Resources/app/administration"
 	done
 .PHONY : stageX/app
 

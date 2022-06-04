@@ -151,6 +151,8 @@ RUN npm run build
 
 FROM stage AS stage3
 COPY stage3 /
+ARG APP_ENV
+COPY stage3-${APP_ENV} /
 {{#static-plugins}}
 COPY --from=assets /app/custom/static-plugins/{{name}}/src/Resources/public custom/static-plugins/{{name}}/src/Resources/public
 {{/static-plugins}}

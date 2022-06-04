@@ -68,7 +68,6 @@ x-sw-defaults: &sw-defaults
     - "./stageX/app/public:/app/public"
     - "./stageX/app/vendor:/app/vendor"
     - "./stageX/app/var/plugins.json:/app/var/plugins.json"
-    # FIXME prod
 {{#static-plugins}}
     - "./stageX/app/custom/static-plugins/{{name}}/src/Resources/public:/app/custom/static-plugins/{{name}}/src/Resources/public"
     - "./stageX/app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules:/app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules"

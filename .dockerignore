@@ -3,6 +3,8 @@
 !/stage1
 !/stage2
 !/stage3
+!/stage3-dev
+!/stage3-prod
 # shadow
 /stage1/app/config/jwt
 /stage1/app/config/packages
