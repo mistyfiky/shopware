@@ -1,13 +1,14 @@
 SHELL = /bin/bash
-.SHELLFLAGS = -c -e
+.SHELLFLAGS = -c
 export BASH_ENV = $(PWD)/bin/activate
-.ONESHELL:
+.ONESHELL :
 .DEFAULT_GOAL := help
 
-export SHOPWARE_VERSION=6.4.11.1
-export KANIKO_VERSION=1.8.1
+export SHOPWARE_VERSION = 6.4.11.1
+export KANIKO_VERSION = 1.8.1
 
-help:
+help : export BASH_ENV =
+help :
 	@>&2 printf 'commands:\n'
 	@>&2 printf '%20s - %s\n' \
 	 'help' 'show this message' \
@@ -24,7 +25,6 @@ help:
 	 'purge' 'down and remove all runtime files' \
 	 'watch-administration' 'run administration watch' \
 	 'cli' 'open shell inside container' \
-	 'ide' 'prepare files for ide indexing' \
 	 'kaniko' 'build shopware image with kaniko' \
 	 && :
 	@>&2 printf '\nexamples:\n\n'
@@ -33,33 +33,30 @@ help:
 	 '2' 'switch to prod env' 'make prod build recreate urls' \
 	 '3' 'perform shopware update' 'make build update recreate urls' \
 	 && :
-.PHONY: help
+.PHONY : help
 
-build:
+build : compose.yml Dockerfile
 	docker compose --profile platform --profile tasks --profile tools build
-.PHONY: build
+.PHONY : build
 
-build-plain:
-	docker compose --profile platform --profile tasks --profile tools build --progress plain
-.PHONY: build
-
-down:
+down : compose.yml
 	docker compose --profile platform down --remove-orphans --rmi local -v
-.PHONY: down
+.PHONY : down
 
-install: dump.sql stageX/app permissions
+install : compose.yml dump.sql stageX/app permissions
 	docker compose run --rm install
-.PHONY: install
+.PHONY : install
 
-up: dump.sql
+up : compose.yml dump.sql
 	docker compose --profile platform up -d --remove-orphans
-.PHONY: up
+.PHONY : up
 
-stop:
+stop : compose.yml
 	docker compose --profile platform stop
-.PHONY: stop
+.PHONY : stop
 
-urls:
+urls : export BASH_ENV =
+urls :
 	@>&2 printf '%20s %-30s%s\n' \
 	 'storefront' 'http://localhost:8000' '- : -' \
 	 'administration' 'http://localhost:8000/admin' 'admin : password' \
@@ -67,45 +64,43 @@ urls:
 	 'minio' 'http://localhost:9001' 'user : password' \
 	 'rabbitmq' 'http://localhost:15672' 'user : password' \
 	 'mailhog' 'http://localhost:8025' '- : -'
-.PHONY: urls
+.PHONY : urls
 
-prod dev:
+prod dev :
 	[ "$$APP_ENV" = "$@" ] || sed -i "s/APP_ENV=.*/APP_ENV=$@/" .env
-.PHONY: prod dev
+.PHONY : prod dev
 
-recreate: dump.sql stageX/app
+recreate : compose.yml dump.sql stageX/app
 	docker compose --profile platform up -d --remove-orphans --force-recreate
-.PHONY: recreate
+.PHONY : recreate
 
-update: dump.sql stageX/app permissions
+update : compose.yml dump.sql stageX/app permissions
 	docker compose run --rm update
-.PHONY: update
+.PHONY : update
 
-clean:
+clean :
+	rm -f Dockerfile
 	rm -f dump_*.sql
-.PHONY: clean
+.PHONY : clean
 
-purge: down purge-shadow
+purge : clean down purge-shadow
 	rm -fr stageX
 	rm -f .env
+	rm -f compose.yml
 	rm -f compose.ide.dev.yml
 	rm -f config.json
 	rm -f dump.sql
-.PHONY: purge
+.PHONY : purge
 
-watch-administration:
+watch-administration : compose.yml
 	docker compose run --rm --service-ports watch-administration
-.PHONY: watch-administration
+.PHONY : watch-administration
 
-cli:
+cli : compose.yml
 	docker compose run --rm cli
-.PHONY: cli
+.PHONY : cli
 
-ide:
-	APP_ENV=dev docker-compose --profile tools config | yq 'del(.services.cli.profiles)' >compose.ide.dev.yml
-.PHONY: ide
-
-kaniko: config.json
+kaniko : compose.yml config.json
 	SHOPWARE_IMAGE=$$(docker compose --profile platform config | yq '.services.shopware.image')
 	docker run --rm -it \
 	 -v "$$(pwd)":/workspace \
@@ -116,26 +111,36 @@ kaniko: config.json
 	 --destination="$$SHOPWARE_IMAGE" \
 	 --cache=true \
 	 --build-arg APP_ENV="$$APP_ENV"
-.PHONY: kaniko
+.PHONY : kaniko
 
-dump.sql:
+Dockerfile :
+	mustache plugins.yml $@.mustache >$@
+.PHONY : Dockerfile
+
+compose.yml compose.ide.dev.yml &:
+	mustache plugins.yml compose.yml.mustache >compose.yml
+	APP_ENV=dev docker-compose --profile tools config | yq 'del(.services.cli.profiles)' >compose.ide.dev.yml
+.PHONY : compose.yml compose.ide.dev.yml
+
+dump.sql :
 	touch $@
 
-permissions:
+permissions : compose.yml
 	docker compose run --rm permissions
-.PHONY: permissions
+.PHONY : permissions
 
-purge-shadow:
-	# TODO automate
-	rm -f \
-	 stage1/app/config/services/custom.xml \
-	 stage1/app/bin/wait-for-it.sh \
+purge-shadow :
+	rm -fr \
+	 stage1/app/config/jwt \
+	 stage1/app/config/packages \
+	 stage1/app/bin/install.sh \
 	 stage1/app/bin/update.sh \
-	 stage1/app/bin/install.sh
-	PURGE_SHADOW_DIRS=$$(find . -user root -type d | sort -r); [ -z "$$PURGE_SHADOW_DIRS" ] || echo "$$PURGE_SHADOW_DIRS" | xargs sudo rmdir
-.PHONY: purge-shadow
+	 stage1/app/bin/wait-for-it.sh \
+	 stage1/app/config/services/custom.xml \
+	 && :
+.PHONY : purge-shadow
 
-stageX/app:
+stageX/app : compose.yml
 	mkdir -p $@
 	# FIXME prod
 	SHOPWARE_IMAGE=$$(APP_ENV=dev docker compose --profile platform config | yq '.services.shopware.image')
@@ -149,24 +154,25 @@ stageX/app:
 	mkdir -p $@/var
 	docker cp -a "$$CONTAINER_ID":/app/var/plugins.json $@/var/plugins.json
 	# FIXME prod
-	# TODO automate
-	mkdir -p $@/custom/static-plugins/FroshTools/src/Resources/public
-	docker cp -a "$$CONTAINER_ID":/app/custom/static-plugins/FroshTools/src/Resources/public $@/custom/static-plugins/FroshTools/src/Resources
-	mkdir -p $@/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
-	docker cp -a "$$CONTAINER_ID":/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules $@/custom/static-plugins/FroshTools/src/Resources/app/administration
-.PHONY: stageX/app
+	for name in $$(yq '.static-plugins[].name' <plugins.yml); do
+	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/public"
+	 docker cp -a "$${CONTAINER_ID}:/app/custom/static-plugins/$${name}/src/Resources/public" "$@/custom/static-plugins/$${name}/src/Resources"
+	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules"
+	 docker cp -a "$${CONTAINER_ID}:/app/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules" "$@/custom/static-plugins/$${name}/src/Resources/app/administration"
+	done
+.PHONY : stageX/app
 
-config.json:
+config.json :
 	@read -rp 'GitHub username: ' USER
 	@read -rsp 'GitHub PAT: ' PASSWORD
 	@echo -n "{\"auths\":{\"ghcr.io\":{\"auth\":\"$$(echo $$USERNAME:$$PASSWORD | base64)\"}}}" >$@
 
-db-dump:
+db-dump : compose.yml
 	[ ! -f dump.sql ] || mv dump.sql dump_$$(date +%s).sql
 	docker compose exec db mysqldump -uroot -ppassword shopware 1>dump.sql
-.PHONY: db-dump
+.PHONY : db-dump
 
-stage1/app:
+stage1/app :
 	cd stage1
 	rm -fr app
 	mkdir app
@@ -180,5 +186,8 @@ stage1/app:
 	 --exclude */Dockerfile \
 	 --exclude */docker-compose.yml \
 	 --exclude */README.md \
+	 --exclude */config/jwt \
+	 --exclude */config/packages \
+	 --exclude */config/secrets \
 	 --strip-components 1
-.PHONY: stage1/app
+.PHONY : stage1/app

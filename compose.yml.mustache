@@ -53,13 +53,14 @@ x-sw-defaults: &sw-defaults
     - "./stage1/app/bin:/app/bin"
     - "./stage1/app/config:/app/config"
     - "./stage1/app/src:/app/src"
-    # TODO automate
-    - "./stage2/app/custom/static-plugins/FroshTools:/app/custom/static-plugins/FroshTools"
+{{#static-plugins}}
+    - "./stage2/app/custom/static-plugins/{{name}}:/app/custom/static-plugins/{{name}}"
+{{/static-plugins}}
     - "./stage3/app/bin/install.sh:/app/bin/install.sh"
     - "./stage3/app/bin/update.sh:/app/bin/update.sh"
     - "./stage3/app/bin/wait-for-it.sh:/app/bin/wait-for-it.sh"
-    - "./stage3/app/config/packages:/app/config/packages"
     - "./stage3/app/config/services/custom.xml:/app/config/services/custom.xml"
+    - "./stage3/app/config/packages:/app/config/packages"
     - "./stage3/app/config/services.xml:/app/config/services.xml"
     - "./stage3/app/install.lock:/app/install.lock"
     - "./stageX/app/composer.json:/app/composer.json"
@@ -68,9 +69,10 @@ x-sw-defaults: &sw-defaults
     - "./stageX/app/vendor:/app/vendor"
     - "./stageX/app/var/plugins.json:/app/var/plugins.json"
     # FIXME prod
-    # TODO automate
-    - "./stageX/app/custom/static-plugins/FroshTools/src/Resources/public:/app/custom/static-plugins/FroshTools/src/Resources/public"
-    - "./stageX/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules:/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules"
+{{#static-plugins}}
+    - "./stageX/app/custom/static-plugins/{{name}}/src/Resources/public:/app/custom/static-plugins/{{name}}/src/Resources/public"
+    - "./stageX/app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules:/app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules"
+{{/static-plugins}}
 
 services:
 

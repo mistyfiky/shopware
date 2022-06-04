@@ -1,3 +1,7 @@
+set -e
+command -v mustache >/dev/null || ( >&2 echo 'mustache command not found' && exit 1 )
+command -v yq >/dev/null || ( >&2 echo 'yq command not found' && exit 1 )
+command -v docker >/dev/null || ( >&2 echo 'docker command not found' && exit 1 )
 APP_ENV="${APP_ENV:-dev}"
 USER_ID="${USER_ID:-$(id -u)}"
 GROUP_ID="${GROUP_ID:-$(id -g)}"

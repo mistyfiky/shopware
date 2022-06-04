@@ -1,0 +1,7 @@
+---
+static-plugins:
+- name: FroshTools
+composer-plugins:
+- name: frosh/tools
+  version: 0.1.7
+---

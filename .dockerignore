@@ -1,12 +1,14 @@
 /*
 !/stage0
 !/stage1
+!/stage2
+!/stage3
+# shadow
+/stage1/app/config/jwt
+/stage1/app/config/packages
 /stage1/app/bin/install.sh
 /stage1/app/bin/update.sh
 /stage1/app/bin/wait-for-it.sh
 /stage1/app/config/services/custom.xml
-!/stage2
-# TODO automate
-/stage2/app/custom/static-plugins/FroshTools/src/Resources/public
-/stage2/app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
-!/stage3
+/stage2/app/custom/static-plugins/*/src/Resources/public
+/stage2/app/custom/static-plugins/*/src/Resources/app/administration/node_modules

@@ -79,9 +79,12 @@ ARG PHP_VERSION
 RUN composer config platform.php "$PHP_VERSION" && \
     composer require --no-install --no-scripts php "$PHP_VERSION" && \
     composer remove --no-update --no-scripts shopware/recovery
-# FIXME automate
-COPY stage2/app/custom/static-plugins/FroshTools/composer.json custom/static-plugins/FroshTools/composer.json
-RUN composer require --no-install --no-scripts frosh/tools:0.1.7
+{{#static-plugins}}
+COPY stage2/app/custom/static-plugins/{{name}}/composer.json custom/static-plugins/{{name}}/composer.json
+{{/static-plugins}}
+{{#composer-plugins}}
+RUN composer require --no-install --no-scripts {{name}}:{{version}}
+{{/composer-plugins}}
 
 
 FROM php AS vendor-base
@@ -91,8 +94,9 @@ COPY --from=dependencies /app/composer.json /app/composer.lock ./
 ARG APP_ENV
 ENV APP_ENV=${APP_ENV} \
     COMPOSER_ALLOW_SUPERUSER=1
-# FIXME automate
-COPY stage2/app/custom/static-plugins/FroshTools/composer.json custom/static-plugins/FroshTools/composer.json
+{{#static-plugins}}
+COPY stage2/app/custom/static-plugins/{{name}}/composer.json custom/static-plugins/{{name}}/composer.json
+{{/static-plugins}}
 
 
 FROM vendor-base AS vendor-prod
@@ -123,11 +127,12 @@ COPY --from=node / /
 COPY --from=vendor /app/vendor vendor
 ENV PUPPETEER_SKIP_DOWNLOAD=1
 RUN npm clean-install --prefix vendor/shopware/administration/Resources/app/administration
-# FIXME automate
-COPY stage2/app/custom/static-plugins/FroshTools/src/Resources/app/administration/package.json \
-     stage2/app/custom/static-plugins/FroshTools/src/Resources/app/administration/package-lock.json \
-     custom/static-plugins/FroshTools/src/Resources/app/administration/
-RUN npm clean-install --prefix custom/static-plugins/FroshTools/src/Resources/app/administration
+{{#static-plugins}}
+COPY stage2/app/custom/static-plugins/{{name}}/src/Resources/app/administration/package.json \
+     stage2/app/custom/static-plugins/{{name}}/src/Resources/app/administration/package-lock.json \
+     custom/static-plugins/{{name}}/src/Resources/app/administration/
+RUN npm clean-install --prefix custom/static-plugins/{{name}}/src/Resources/app/administration
+{{/static-plugins}}
 
 
 FROM php AS assets
@@ -135,8 +140,9 @@ COPY --from=node / /
 COPY --from=stage1 / /
 COPY --from=stage2 / /
 COPY --from=node_modules /app/vendor/shopware/administration/Resources/app/administration/node_modules vendor/shopware/administration/Resources/app/administration/node_modules
-# FIXME automate
-COPY --from=node_modules /app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
+{{#static-plugins}}
+COPY --from=node_modules /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
+{{/static-plugins}}
 WORKDIR /app/vendor/shopware/administration/Resources/app/administration
 ENV PROJECT_ROOT=/app \
     SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS=1
@@ -145,8 +151,9 @@ RUN npm run build
 
 FROM stage AS stage3
 COPY stage3 /
-# FIXME automate
-COPY --from=assets /app/custom/static-plugins/FroshTools/src/Resources/public custom/static-plugins/FroshTools/src/Resources/public
+{{#static-plugins}}
+COPY --from=assets /app/custom/static-plugins/{{name}}/src/Resources/public custom/static-plugins/{{name}}/src/Resources/public
+{{/static-plugins}}
 
 
 FROM scratch AS base
@@ -154,28 +161,44 @@ COPY --from=php / /
 COPY --from=stage0 / /
 
 
-FROM base AS prod
+FROM base AS base-prod
 
 
-FROM base AS dev
+FROM base AS base-dev
 COPY --from=composer / /
 COPY --from=node / /
 COPY --from=jq / /
-ARG USER_ID
-ARG GROUP_ID
-# FIXME npm cache
-ONBUILD COPY --from=node_modules --chown=${USER_ID}:${GROUP_ID} /app/vendor/shopware/administration/Resources/app/administration/node_modules /app/vendor/shopware/administration/Resources/app/administration/node_modules
-# FIXME automate
-ONBUILD COPY --from=node_modules --chown=${USER_ID}:${GROUP_ID} /app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules /app/custom/static-plugins/FroshTools/src/Resources/app/administration/node_modules
 
 
-FROM ${APP_ENV}
+FROM base-${APP_ENV} as common
 ARG USER_ID
 ARG GROUP_ID
 COPY --from=stage1 --chown=${USER_ID}:${GROUP_ID} / /
 COPY --from=stage2 --chown=${USER_ID}:${GROUP_ID} / /
 COPY --from=stage3 /usr /usr
 COPY --from=stage3 --chown=${USER_ID}:${GROUP_ID} /app /app
+
+
+FROM common as prod
+
+
+FROM common as dev
+ARG USER_ID
+ARG GROUP_ID
+# FIXME npm cache
+COPY --from=node_modules --chown=${USER_ID}:${GROUP_ID} /app/vendor/shopware/administration/Resources/app/administration/node_modules /app/vendor/shopware/administration/Resources/app/administration/node_modules
+{{#static-plugins}}
+COPY --from=node_modules --chown=${USER_ID}:${GROUP_ID} /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
+{{/static-plugins}}
+
+
+FROM ${APP_ENV} as root
+
+
+FROM scratch
+COPY --from=root / /
+ARG USER_ID
+ARG GROUP_ID
 USER ${USER_ID}:${GROUP_ID}
 ENV PHP_INI_DIR=/usr/local/etc/php
 ENTRYPOINT ["docker-php-entrypoint"]
