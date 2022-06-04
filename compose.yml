@@ -61,7 +61,6 @@ x-sw-defaults: &sw-defaults
     - "./stage3/app/config/packages:/app/config/packages"
     - "./stage3/app/config/services/custom.xml:/app/config/services/custom.xml"
     - "./stage3/app/config/services.xml:/app/config/services.xml"
-    - "./stage3/app/.env:/app/.env"
     - "./stage3/app/install.lock:/app/install.lock"
     - "./stageX/app/composer.json:/app/composer.json"
     - "./stageX/app/composer.lock:/app/composer.lock"
@@ -186,6 +185,7 @@ services:
     environment:
       <<: *sw-defaults-environment
       APP_URL: "http://web"
+      ENV_FILE: "/dev/null"
       HOST: "0.0.0.0"
       PORT: "80"
 # FIXME localhost?
