@@ -16,11 +16,12 @@ help :
 	 'down' 'stop all services and remove their data' \
 	 'install' 'run install script' \
 	 'up' 'start all services' \
-	 'stop' 'stop all services' \
 	 'urls' 'show services urls' \
 	 'prod, dev' 'change environment in configuration' \
 	 'recreate' 'recreate all services' \
+	 'jwt' 'generate a new jwt secret' \
 	 'update' 'run update script' \
+	 'stop' 'stop all services' \
 	 'clean' 'remove unnecessary files' \
 	 'purge' 'down and remove all runtime files' \
 	 'watch-administration' 'run administration watch' \
@@ -30,8 +31,9 @@ help :
 	@>&2 printf '\nexamples:\n\n'
 	@>&2 printf '%d. %s\n\n\t%s\n\n' \
 	 '1' 'setup development environment' 'make build down install up urls' \
-	 '2' 'switch to prod env' 'make prod build recreate urls' \
-	 '3' 'perform shopware update' 'make build update recreate urls' \
+	 '2' 'setup dev env from dump.sql' 'make build down jwt update up urls' \
+	 '3' 'switch to prod env' 'make prod build recreate urls' \
+	 '4' 'perform shopware update' 'make build update recreate urls' \
 	 && :
 .PHONY : help
 
@@ -43,7 +45,7 @@ down : compose.yml
 	docker compose --profile platform down --remove-orphans --rmi local -v
 .PHONY : down
 
-install : compose.yml dump.sql stageX/app permissions
+install : compose-runtime permissions
 	docker compose run --rm install
 .PHONY : install
 
@@ -67,14 +69,18 @@ urls :
 .PHONY : urls
 
 prod dev :
-	[ "$$APP_ENV" = "$@" ] || sed -i "s/APP_ENV=.*/APP_ENV=$@/" .env
+	[ '@' = "$$APP_ENV" ] || sed -i "s/APP_ENV=.*/APP_ENV=$@/" .env
 .PHONY : prod dev
 
-recreate : compose.yml dump.sql stageX/app
+recreate : compose-runtime
 	docker compose --profile platform up -d --remove-orphans --force-recreate
 .PHONY : recreate
 
-update : compose.yml dump.sql stageX/app permissions
+jwt : compose-runtime permissions
+	docker compose run --rm generate-jwt-secret
+.PHONY : jwt
+
+update : compose-runtime
 	docker compose run --rm update
 .PHONY : update
 
@@ -92,7 +98,7 @@ purge : clean down purge-shadow
 	rm -f dump.sql
 .PHONY : purge
 
-watch-administration : compose.yml
+watch-administration : dev-check compose.yml
 	docker compose run --rm --service-ports watch-administration
 .PHONY : watch-administration
 
@@ -117,6 +123,10 @@ Dockerfile :
 	mustache plugins.yml $@.mustache >$@
 .PHONY : Dockerfile
 
+dev-check :
+	@[ 'dev' = "$$APP_ENV" ] || ( >&2 printf '\n\t%s\n\n' '(╯°□°)╯︵ ┻━┻' && exit 1)
+.PHONY : dev-check
+
 compose.yml compose.ide.dev.yml &:
 	mustache plugins.yml compose.yml.mustache >compose.yml
 	APP_ENV=dev docker-compose --profile tools config | yq 'del(.services.cli.profiles)' >compose.ide.dev.yml
@@ -128,6 +138,9 @@ dump.sql :
 permissions : compose.yml
 	docker compose run --rm permissions
 .PHONY : permissions
+
+compose-runtime : compose.yml dump.sql stageX/app
+.PHONY : compose-runtime
 
 purge-shadow :
 	rm -fr \
@@ -156,7 +169,7 @@ stageX/app : compose.yml
 	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/public"
 	 docker cp -a "$${CONTAINER_ID}:/app/custom/static-plugins/$${name}/src/Resources/public" "$@/custom/static-plugins/$${name}/src/Resources"
 	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules"
-	 [ "dev" != "$$APP_ENV" ] || docker cp -a "$${CONTAINER_ID}:/app/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules" "$@/custom/static-plugins/$${name}/src/Resources/app/administration"
+	 [ 'dev' != "$$APP_ENV" ] || docker cp -a "$${CONTAINER_ID}:/app/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules" "$@/custom/static-plugins/$${name}/src/Resources/app/administration"
 	done
 .PHONY : stageX/app
 

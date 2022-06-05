@@ -171,6 +171,11 @@ services:
     <<: *sw-defaults
     command: "bin/wait-for-it.sh -s -t 60 -h db -p 3306 -- bin/update.sh"
 
+  generate-jwt-secret:
+    <<: *tasks-profile
+    <<: *sw-defaults
+    command: "bin/console -n system:generate-jwt-secret"
+
   cli:
     <<: *tools-profile
     <<: *sw-defaults
