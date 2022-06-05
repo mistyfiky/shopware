@@ -38,7 +38,7 @@ help :
 .PHONY : help
 
 build : compose.yml Dockerfile
-	docker compose --profile platform --profile tasks --profile tools build
+	docker compose --profile platform --profile tasks --profile tools build $$DOCKER_BUILD_OPTS
 .PHONY : build
 
 down : compose.yml
@@ -150,6 +150,8 @@ purge-shadow :
 	 stage1/app/bin/update.sh \
 	 stage1/app/bin/wait-for-it.sh \
 	 stage1/app/config/services/custom.xml \
+	 stage2/app/custom/static-plugins/*/src/Resources/public \
+	 stage2/app/custom/static-plugins/*/src/Resources/app/administration/node_modules \
 	 && :
 .PHONY : purge-shadow
 

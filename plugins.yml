@@ -1,7 +1,10 @@
 ---
 static-plugins:
 - name: FroshTools
+- name: SwagPayPal
 composer-plugins:
 - name: frosh/tools
   version: 0.1.7
+- name: swag/paypal
+  version: 5.1.1
 ---
