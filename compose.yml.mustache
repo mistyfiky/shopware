@@ -9,13 +9,17 @@ x-tasks-profile: &tasks-profile
 x-tools-profile: &tools-profile
   profiles: [ "tools" ]
 
-x-sw-defaults: &sw-defaults
+x-sw-build: &sw-build
   build:
     context: .
     args:
       APP_ENV: "${APP_ENV?}"
       USER_ID: "${USER_ID?}"
       GROUP_ID: "${GROUP_ID?}"
+  image: "ghcr.io/mistyfiky/shopware/${APP_ENV?}:latest"
+
+x-sw-defaults: &sw-defaults
+  <<: *sw-build
   depends_on:
     kv:
       condition: service_started
@@ -47,7 +51,6 @@ x-sw-defaults: &sw-defaults
     PHP_IDE_CONFIG: "serverName=localhost"
   extra_hosts:
     - "host.docker.internal:host-gateway"
-  image: "ghcr.io/mistyfiky/shopware/${APP_ENV?}:latest"
   volumes:
     - "jwtdata:/app/config/jwt"
     - "./stage1/app/bin:/app/bin"
@@ -63,14 +66,10 @@ x-sw-defaults: &sw-defaults
     - "./stage3/app/config/packages:/app/config/packages"
     - "./stage3/app/config/services.xml:/app/config/services.xml"
     - "./stage3/app/install.lock:/app/install.lock"
-    - "./stageX/app/composer.json:/app/composer.json"
-    - "./stageX/app/composer.lock:/app/composer.lock"
-    - "./stageX/app/public:/app/public"
-    - "./stageX/app/vendor:/app/vendor"
-    - "./stageX/app/var/plugins.json:/app/var/plugins.json"
 {{#static-plugins}}
-    - "./stageX/app/custom/static-plugins/{{name}}/src/Resources/public:/app/custom/static-plugins/{{name}}/src/Resources/public"
-    - "./stageX/app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules:/app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules"
+    - "stageX_{{name}}_public:/app/custom/static-plugins/{{name}}/src/Resources/public"
+# FIXME prod
+    - "stageX_{{name}}_node_modules:/app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules"
 {{/static-plugins}}
 
 services:
@@ -148,6 +147,11 @@ services:
     command: "bin/console -n scheduled-task:run --time-limit=60 --memory-limit=128M"
     restart: unless-stopped
 
+  noop:
+    <<: *tasks-profile
+    <<: *sw-build
+    command: "tail -f /dev/null"
+
   permissions:
     <<: *tasks-profile
     <<: *sw-defaults
@@ -205,3 +209,8 @@ volumes:
   mqdata:
   s3data:
   jwtdata:
+{{#static-plugins}}
+  stageX_{{name}}_public:
+# FIXME prod
+  stageX_{{name}}_node_modules:
+{{/static-plugins}}

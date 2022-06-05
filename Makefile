@@ -21,6 +21,7 @@ help :
 	 'recreate' 'recreate all services' \
 	 'jwt' 'generate a new jwt secret' \
 	 'update' 'run update script' \
+	 'ide' 'prepare configuration and copy files from image for IDE' \
 	 'stop' 'stop all services' \
 	 'clean' 'remove unnecessary files' \
 	 'purge' 'down and remove all runtime files' \
@@ -37,11 +38,11 @@ help :
 	 && :
 .PHONY : help
 
-build : compose.yml Dockerfile
+build : compose-runtime
 	docker compose --profile platform --profile tasks --profile tools build $$DOCKER_BUILD_OPTS
 .PHONY : build
 
-down : compose.yml
+down : compose-runtime
 	docker compose --profile platform down --remove-orphans --rmi local -v
 .PHONY : down
 
@@ -49,11 +50,11 @@ install : compose-runtime permissions
 	docker compose run --rm install
 .PHONY : install
 
-up : compose.yml dump.sql
+up : compose-runtime
 	docker compose --profile platform up -d --remove-orphans
 .PHONY : up
 
-stop : compose.yml
+stop : compose-runtime
 	docker compose --profile platform stop
 .PHONY : stop
 
@@ -98,15 +99,15 @@ purge : clean down purge-shadow
 	rm -f dump.sql
 .PHONY : purge
 
-watch-administration : dev-check compose.yml
+watch-administration : dev-check compose-runtime
 	docker compose run --rm --service-ports watch-administration
 .PHONY : watch-administration
 
-cli : compose.yml
+cli : compose-runtime
 	docker compose run --rm cli
 .PHONY : cli
 
-kaniko : compose.yml config.json
+kaniko : compose-runtime config.json
 	SHOPWARE_IMAGE=$$(docker compose --profile platform config | yq '.services.shopware.image')
 	docker run --rm -it \
 	 -v "$$(pwd)":/workspace \
@@ -119,28 +120,23 @@ kaniko : compose.yml config.json
 	 --build-arg APP_ENV="$$APP_ENV"
 .PHONY : kaniko
 
-Dockerfile :
+Dockerfile compose.yml :
 	mustache plugins.yml $@.mustache >$@
-.PHONY : Dockerfile
+.PHONY : Dockerfile compose.yml
+
+dump.sql :
+	touch $@
+
+compose-runtime : Dockerfile compose.yml dump.sql
+.PHONY : compose-runtime
 
 dev-check :
 	@[ 'dev' = "$$APP_ENV" ] || ( >&2 printf '\n\t%s\n\n' '(╯°□°)╯︵ ┻━┻' && exit 1)
 .PHONY : dev-check
 
-compose.yml compose.ide.dev.yml &:
-	mustache plugins.yml compose.yml.mustache >compose.yml
-	APP_ENV=dev docker-compose --profile tools config | yq 'del(.services.cli.profiles)' >compose.ide.dev.yml
-.PHONY : compose.yml compose.ide.dev.yml
-
-dump.sql :
-	touch $@
-
-permissions : compose.yml
+permissions : compose-runtime
 	docker compose run --rm permissions
 .PHONY : permissions
-
-compose-runtime : compose.yml dump.sql stageX/app
-.PHONY : compose-runtime
 
 purge-shadow :
 	rm -fr \
@@ -155,32 +151,33 @@ purge-shadow :
 	 && :
 .PHONY : purge-shadow
 
-stageX/app : compose.yml
+compose.ide.dev.yml :
+	APP_ENV=dev docker-compose --profile tools config | yq 'del(.services.cli.profiles)' >$@
+.PHONY : compose.ide.dev.yml
+
+stageX/app : compose-runtime
+	docker compose up -d --force-recreate noop
 	mkdir -p $@
-	SHOPWARE_IMAGE=$$(docker compose --profile platform config | yq '.services.shopware.image')
-	CONTAINER_ID=$$(docker run -d --rm $$SHOPWARE_IMAGE sleep 60)
-	docker cp -a "$$CONTAINER_ID":/app/composer.json $@
-	docker cp -a "$$CONTAINER_ID":/app/composer.lock $@
-	mkdir -p $@/public
-	docker cp -a "$$CONTAINER_ID":/app/public $@
+	docker compose cp -a noop:/app/composer.json $@
+	docker compose cp -a noop:/app/composer.lock $@
 	mkdir -p $@/vendor
-	docker cp -a "$$CONTAINER_ID":/app/vendor $@
-	mkdir -p $@/var
-	docker cp -a "$$CONTAINER_ID":/app/var/plugins.json $@/var/plugins.json
+	docker compose cp -a noop:/app/vendor $@
 	for name in $$(yq '.static-plugins[].name' <plugins.yml); do
-	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/public"
-	 docker cp -a "$${CONTAINER_ID}:/app/custom/static-plugins/$${name}/src/Resources/public" "$@/custom/static-plugins/$${name}/src/Resources"
 	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules"
-	 [ 'dev' != "$$APP_ENV" ] || docker cp -a "$${CONTAINER_ID}:/app/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules" "$@/custom/static-plugins/$${name}/src/Resources/app/administration"
+	 docker compose cp -a "noop:/app/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules" "$@/custom/static-plugins/$${name}/src/Resources/app/administration"
 	done
+	docker compose rm -fs noop
 .PHONY : stageX/app
+
+ide : compose.ide.dev.yml stageX/app
+.PHONY : ide
 
 config.json :
 	@read -rp 'GitHub username: ' USER
 	@read -rsp 'GitHub PAT: ' PASSWORD
 	@echo -n "{\"auths\":{\"ghcr.io\":{\"auth\":\"$$(echo $$USERNAME:$$PASSWORD | base64)\"}}}" >$@
 
-db-dump : compose.yml
+db-dump : compose-runtime
 	[ ! -f dump.sql ] || mv dump.sql dump_$$(date +%s).sql
 	docker compose exec db mysqldump -uroot -ppassword shopware 1>dump.sql
 .PHONY : db-dump
