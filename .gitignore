@@ -4,8 +4,8 @@
 /compose.ide.dev.yml
 /config.json
 /Dockerfile
-/dump.sql
-/dump_*.sql
+/initdb.d/dump.sql
+/initdb.d/dump_*.sql
 # shadow
 /stage1/app/config/jwt
 /stage1/app/config/packages
@@ -14,5 +14,6 @@
 /stage1/app/bin/update.sh
 /stage1/app/bin/wait-for-it.sh
 /stage1/app/config/services/custom.xml
+/stage2/app/custom/static-plugins/*/vendor
 /stage2/app/custom/static-plugins/*/src/Resources/public
 /stage2/app/custom/static-plugins/*/src/Resources/app/administration/node_modules

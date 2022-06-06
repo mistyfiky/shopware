@@ -69,6 +69,7 @@ x-sw-defaults: &sw-defaults
     - "./stage3/app/config/services.xml:/app/config/services.xml"
     - "./stage3/app/install.lock:/app/install.lock"
 {{#static-plugins}}
+    - "stageX_{{name}}_vendor:/app/custom/static-plugins/{{name}}/vendor"
     - "stageX_{{name}}_public:/app/custom/static-plugins/{{name}}/src/Resources/public"
 # FIXME prod
     - "stageX_{{name}}_node_modules:/app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules"
@@ -88,9 +89,12 @@ services:
       MYSQL_PASSWORD: "password"
       MYSQL_DATABASE: "shopware"
     image: "mysql:8.0.29"
+    ports:
+      - "4406:3306"
     volumes:
       - "dbdata:/var/lib/mysql"
-      - "./dump.sql:/docker-entrypoint-initdb.d/dump.sql"
+      - "./initdb.d/grant.sql:/docker-entrypoint-initdb.d/grant.sql"
+      - "./initdb.d/dump.sql:/docker-entrypoint-initdb.d/dump.sql"
 
   mq:
     environment:
@@ -212,6 +216,7 @@ volumes:
   s3data:
   jwtdata:
 {{#static-plugins}}
+  stageX_{{name}}_vendor:
   stageX_{{name}}_public:
 # FIXME prod
   stageX_{{name}}_node_modules:

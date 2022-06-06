@@ -105,6 +105,10 @@ RUN composer install --no-interaction --optimize-autoloader --no-scripts --no-de
 
 FROM vendor-base AS vendor-dev
 RUN composer install --no-interaction --optimize-autoloader --no-scripts
+{{#static-plugins}}
+RUN composer -d custom/static-plugins/{{name}} dump-autoload --dev && \
+    touch custom/static-plugins/{{name}}/vendor/composer/InstalledVersions.php
+{{/static-plugins}}
 
 
 FROM vendor-${APP_ENV} AS vendor
@@ -190,6 +194,7 @@ ARG GROUP_ID
 # FIXME npm cache
 COPY --from=node_modules --chown=${USER_ID}:${GROUP_ID} /app/vendor/shopware/administration/Resources/app/administration/node_modules /app/vendor/shopware/administration/Resources/app/administration/node_modules
 {{#static-plugins}}
+COPY --from=vendor --chown=${USER_ID}:${GROUP_ID} /app/custom/static-plugins/{{name}}/vendor /app/custom/static-plugins/{{name}}/vendor
 COPY --from=node_modules --chown=${USER_ID}:${GROUP_ID} /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
 {{/static-plugins}}
 

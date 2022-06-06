@@ -1,11 +1,14 @@
-framework:
-  cache:
-    app: "cache.adapter.redis"
-    default_redis_provider: "%env(resolve:REDIS_CACHE_DSN)%"
-  lock: "%env(resolve:REDIS_LOCK_DSN)%"
-  mailer:
-    message_bus: "messenger.default_bus"
-  messenger:
-    transports:
-      default:
-        dsn: "%env(resolve:RABBITMQ_DSN)%"
+when@prod: &framework_prod
+  framework:
+    cache:
+      app: "cache.adapter.redis"
+      default_redis_provider: "%env(resolve:REDIS_CACHE_DSN)%"
+    lock: "%env(resolve:REDIS_LOCK_DSN)%"
+    mailer:
+      message_bus: "messenger.default_bus"
+    messenger:
+      transports:
+        default:
+          dsn: "%env(resolve:RABBITMQ_DSN)%"
+
+when@dev: *framework_prod

@@ -66,7 +66,9 @@ urls :
 	 'administration-watch' 'http://localhost:8080' 'admin : password' \
 	 'minio' 'http://localhost:9001' 'user : password' \
 	 'rabbitmq' 'http://localhost:15672' 'user : password' \
-	 'mailhog' 'http://localhost:8025' '- : -'
+	 'mailhog' 'http://localhost:8025' '- : -' \
+	 'database' 'mysql://localhost:4406' 'user : password' \
+	 && :
 .PHONY : urls
 
 prod dev :
@@ -87,7 +89,7 @@ update : compose-runtime
 
 clean :
 	rm -f Dockerfile
-	rm -f dump_*.sql
+	rm -f initdb.d/dump_*.sql
 .PHONY : clean
 
 purge : clean down purge-shadow
@@ -96,7 +98,7 @@ purge : clean down purge-shadow
 	rm -f compose.yml
 	rm -f compose.ide.dev.yml
 	rm -f config.json
-	rm -f dump.sql
+	rm -f initdb.d/dump.sql
 .PHONY : purge
 
 watch-administration : dev-check compose-runtime
@@ -124,13 +126,13 @@ Dockerfile compose.yml :
 	mustache plugins.yml $@.mustache >$@
 .PHONY : Dockerfile compose.yml
 
-dump.sql :
+initdb.d/dump.sql :
 	touch $@
 
 stage1/app/public/dev :
 	mkdir -p stage1/app/public/dev
 
-compose-runtime : Dockerfile compose.yml dump.sql stage1/app/public/dev
+compose-runtime : Dockerfile compose.yml initdb.d/dump.sql stage1/app/public/dev
 .PHONY : compose-runtime
 
 dev-check :
@@ -149,6 +151,7 @@ purge-shadow :
 	 stage1/app/bin/update.sh \
 	 stage1/app/bin/wait-for-it.sh \
 	 stage1/app/config/services/custom.xml \
+	 stage2/app/custom/static-plugins/*/vendor \
 	 stage2/app/custom/static-plugins/*/src/Resources/public \
 	 stage2/app/custom/static-plugins/*/src/Resources/app/administration/node_modules \
 	 && :
@@ -166,6 +169,8 @@ stageX/app : compose-runtime
 	mkdir -p $@/vendor
 	docker compose cp -a noop:/app/vendor $@
 	for name in $$(yq '.static-plugins[].name' <plugins.yml); do
+	 mkdir -p "$@/custom/static-plugins/$${name}/vendor"
+	 docker compose cp -a "noop:/app/custom/static-plugins/$${name}/vendor" "$@/custom/static-plugins/$${name}/vendor"
 	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules"
 	 docker compose cp -a "noop:/app/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules" "$@/custom/static-plugins/$${name}/src/Resources/app/administration"
 	done
@@ -185,8 +190,8 @@ db-check :
 .PHONY : db-check
 
 db-dump : db-check compose-runtime
-	[ ! -f dump.sql ] || [ ! -s dump.sql ] || mv dump.sql dump_$$(date +%s).sql
-	docker compose exec db mysqldump -uroot -ppassword shopware 1>dump.sql
+	[ ! -s initdb.d/dump.sql ] || mv initdb.d/dump.sql dump_$$(date +%s).sql
+	docker compose exec db mysqldump -uroot -ppassword shopware 1>initdb.d/dump.sql
 .PHONY : db-dump
 
 stage1/app :

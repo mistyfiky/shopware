@@ -1,7 +1,10 @@
-monolog:
-  handlers:
-    main:
-      level: "error"
-      buffer_size: 30
-    business_event_handler_buffer:
-      level: "error"
+when@prod: &monolog_prod
+  monolog:
+    handlers:
+      main:
+        level: "error"
+        buffer_size: 30
+      business_event_handler_buffer:
+        level: "error"
+
+when@dev: *monolog_prod
