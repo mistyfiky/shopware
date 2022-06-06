@@ -56,6 +56,8 @@ x-sw-defaults: &sw-defaults
     - "./stage1/app/bin:/app/bin"
     - "./stage1/app/config:/app/config"
     - "./stage1/app/src:/app/src"
+    - "./stage1/app/public/dev:/app/public/dev"
+    - "./stage1/app/public/index.php:/app/public/index.php"
 {{#static-plugins}}
     - "./stage2/app/custom/static-plugins/{{name}}:/app/custom/static-plugins/{{name}}"
 {{/static-plugins}}

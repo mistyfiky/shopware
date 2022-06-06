@@ -91,7 +91,7 @@ clean :
 .PHONY : clean
 
 purge : clean down purge-shadow
-	rm -fr stageX
+	rm -fr stage1/app/public/dev stageX
 	rm -f .env
 	rm -f compose.yml
 	rm -f compose.ide.dev.yml
@@ -127,11 +127,14 @@ Dockerfile compose.yml :
 dump.sql :
 	touch $@
 
-compose-runtime : Dockerfile compose.yml dump.sql
+stage1/app/public/dev :
+	mkdir -p stage1/app/public/dev
+
+compose-runtime : Dockerfile compose.yml dump.sql stage1/app/public/dev
 .PHONY : compose-runtime
 
 dev-check :
-	@[ 'dev' = "$$APP_ENV" ] || ( >&2 printf '\n\t%s\n\n' '(╯°□°)╯︵ ┻━┻' && exit 1)
+	@[ 'dev' = "$$APP_ENV" ] || $(call tableflip,'not in dev env')
 .PHONY : dev-check
 
 permissions : compose-runtime
@@ -177,8 +180,12 @@ config.json :
 	@read -rsp 'GitHub PAT: ' PASSWORD
 	@echo -n "{\"auths\":{\"ghcr.io\":{\"auth\":\"$$(echo $$USERNAME:$$PASSWORD | base64)\"}}}" >$@
 
-db-dump : compose-runtime
-	[ ! -f dump.sql ] || mv dump.sql dump_$$(date +%s).sql
+db-check :
+	@[ -n "$$( docker compose ps db -q --status running 2>/dev/null)" ] || $(call tableflip,'db service is not running')
+.PHONY : db-check
+
+db-dump : db-check compose-runtime
+	[ ! -f dump.sql ] || [ ! -s dump.sql ] || mv dump.sql dump_$$(date +%s).sql
 	docker compose exec db mysqldump -uroot -ppassword shopware 1>dump.sql
 .PHONY : db-dump
 
@@ -201,3 +208,7 @@ stage1/app :
 	 --exclude */config/secrets \
 	 --strip-components 1
 .PHONY : stage1/app
+
+define tableflip
+( >&2 printf '%s\n\n\t%s\n\n' $1 '(╯°□°)╯︵ ┻━┻' && exit 1)
+endef
