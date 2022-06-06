@@ -50,9 +50,9 @@ install : compose-runtime permissions
 	docker compose run --rm install
 .PHONY : install
 
-up : compose-runtime
+up start : compose-runtime
 	docker compose --profile platform up -d --remove-orphans
-.PHONY : up
+.PHONY : up start
 
 stop : compose-runtime
 	docker compose --profile platform stop
