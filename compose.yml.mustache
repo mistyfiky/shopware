@@ -12,11 +12,13 @@ x-tools-profile: &tools-profile
 x-sw-build: &sw-build
   build:
     context: .
+    dockerfile: "Dockerfile"
     args:
       APP_ENV: "${APP_ENV?}"
+      SHOPWARE_COMPOSER_TOKEN: "${SHOPWARE_COMPOSER_TOKEN?}"
       USER_ID: "${USER_ID?}"
       GROUP_ID: "${GROUP_ID?}"
-  image: "ghcr.io/mistyfiky/shopware/${APP_ENV?}:latest"
+  image: "ghcr.io/mistyfiky/shopware-${APP_ENV?}:latest"
 
 x-sw-defaults: &sw-defaults
   <<: *sw-build
@@ -56,18 +58,18 @@ x-sw-defaults: &sw-defaults
     - "./stage1/app/bin:/app/bin"
     - "./stage1/app/config:/app/config"
     - "./stage1/app/src:/app/src"
-    - "./stage1/app/public/dev:/app/public/dev"
     - "./stage1/app/public/index.php:/app/public/index.php"
 {{#static-plugins}}
     - "./stage2/app/custom/static-plugins/{{name}}:/app/custom/static-plugins/{{name}}"
 {{/static-plugins}}
-    - "./stage3/app/bin/install.sh:/app/bin/install.sh"
-    - "./stage3/app/bin/update.sh:/app/bin/update.sh"
-    - "./stage3/app/bin/wait-for-it.sh:/app/bin/wait-for-it.sh"
-    - "./stage3/app/config/services/custom.xml:/app/config/services/custom.xml"
-    - "./stage3/app/config/packages:/app/config/packages"
-    - "./stage3/app/config/services.xml:/app/config/services.xml"
-    - "./stage3/app/install.lock:/app/install.lock"
+    - "./stage4/app/bin/install.sh:/app/bin/install.sh"
+    - "./stage4/app/bin/update.sh:/app/bin/update.sh"
+    - "./stage4/app/bin/wait-for-it.sh:/app/bin/wait-for-it.sh"
+    - "./stage4/app/config/services/custom.xml:/app/config/services/custom.xml"
+    - "./stage4/app/config/packages:/app/config/packages"
+    - "./stage4/app/config/services.xml:/app/config/services.xml"
+    - "./stage4/app/install.lock:/app/install.lock"
+    - "./stageX/app/public/dev:/app/public/dev"
 {{#static-plugins}}
     - "stageX_{{name}}_vendor:/app/custom/static-plugins/{{name}}/vendor"
     - "stageX_{{name}}_public:/app/custom/static-plugins/{{name}}/src/Resources/public"
@@ -144,7 +146,7 @@ services:
   consumer:
     <<: *platform-profile
     <<: *sw-defaults
-    command: "bin/console -n messenger:consume default --time-limit=60 --memory-limit=128M"
+    command: "bin/console -n messenger:consume default --time-limit=60 --memory-limit=128M -vv"
     restart: unless-stopped
 
   task-runner:

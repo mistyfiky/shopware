@@ -1,0 +1,10 @@
+{
+    "pbx-storeinformation": {
+        "general": {
+            "mainMenuItemGeneral": "Store Information",
+            "descriptionTextModule": "Plugin used to manage store detailed information.",
+            "textHeadline": "Store Information",
+            "buttonSave": "Save"
+        }
+    }
+}

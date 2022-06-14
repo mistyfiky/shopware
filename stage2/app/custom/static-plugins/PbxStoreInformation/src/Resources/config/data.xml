@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/shopware/platform/master/src/Core/System/SystemConfig/Schema/config.xsd">
+    <card>
+        <title>Company Address</title>
+        <title lang="de-DE">Firmenanschrift</title>
+
+        <component name="pbx-storeinformation-address">
+            <name>companyAddress</name>
+            <label> </label>
+        </component>
+    </card>
+
+    <card>
+        <title>Social Links</title>
+        <title lang="de-DE">Social Links</title>
+
+        <input-field type="text">
+            <name>facebookUrl</name>
+            <label>Facebook URL</label>
+            <label lang="de-DE">Facebook URL</label>
+            <placeholder>Enter a shop name...</placeholder>
+            <placeholder lang="de-DE">Gib den Facebook URL ein ...</placeholder>
+        </input-field>
+
+        <input-field type="text">
+            <name>instagramUrl</name>
+            <label>Instagram URL</label>
+            <label lang="de-DE">Instagram URL</label>
+            <placeholder>Enter a test field name...</placeholder>
+            <placeholder lang="de-DE">Gib den Instagram URL ein ...</placeholder>
+        </input-field>
+    </card>
+
+    <card>
+        <title>Mobile Apps Links</title>
+        <title lang="de-DE">Mobile Apps Links</title>
+        <input-field type="text">
+            <name>googlePlayLink</name>
+            <label>Google Play</label>
+            <label lang="de-DE">Google Play</label>
+            <placeholder>Enter a link to Google Play...</placeholder>
+            <placeholder lang="de-DE">Gib den Google Play link ein ...</placeholder>
+        </input-field>
+
+        <input-field type="text">
+            <name>appstoreLink</name>
+            <label>App Store</label>
+            <label lang="de-DE">App Store</label>
+            <placeholder>Enter a link to appstore...</placeholder>
+            <placeholder lang="de-DE">Gib den Appstore link ein ...</placeholder>
+        </input-field>
+    </card>
+</config>

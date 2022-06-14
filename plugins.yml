@@ -1,10 +1,8 @@
 ---
 static-plugins:
+- name: PbxStoreInformation
+store-plugins:
 - name: FroshTools
-- name: SwagPayPal
-composer-plugins:
-- name: frosh/tools
+  package: store.shopware.com/froshtools
   version: 0.1.7
-- name: swag/paypal
-  version: 5.1.1
 ---

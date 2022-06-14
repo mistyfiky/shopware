@@ -5,5 +5,5 @@ command -v docker >/dev/null || ( >&2 echo 'docker command not found' && exit 1 
 APP_ENV="${APP_ENV:-dev}"
 USER_ID="${USER_ID:-$(id -u)}"
 GROUP_ID="${GROUP_ID:-$(id -g)}"
-[ -f .env ] || APP_ENV=${APP_ENV} USER_ID=${USER_ID} GROUP_ID=${GROUP_ID} envsubst <.env.dist >.env
+[ -f .env ] || APP_ENV=${APP_ENV} USER_ID=${USER_ID} GROUP_ID=${GROUP_ID} SHOPWARE_COMPOSER_TOKEN=${SHOPWARE_COMPOSER_TOKEN:?shopware composer token not found} envsubst <.env.dist >.env
 . ./.env

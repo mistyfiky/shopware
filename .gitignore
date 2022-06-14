@@ -9,7 +9,6 @@
 # shadow
 /stage1/app/config/jwt
 /stage1/app/config/packages
-/stage1/app/public/dev
 /stage1/app/bin/install.sh
 /stage1/app/bin/update.sh
 /stage1/app/bin/wait-for-it.sh

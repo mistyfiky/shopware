@@ -1,0 +1,5 @@
+/.ecs.cache/
+/.phpstan.cache/
+/.eslintcache
+/.phpunit.result.cache
+/phpstan.neon

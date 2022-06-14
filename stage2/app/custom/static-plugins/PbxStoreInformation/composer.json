@@ -1,0 +1,42 @@
+{
+    "name": "pbx/storeinformation",
+    "description": "Shopware plugin to manage store information",
+    "type": "shopware-platform-plugin",
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "Printbox Sp. z o.o.",
+            "role": "Manufacturer"
+        }
+    ],
+    "require": {},
+    "extra": {
+        "shopware-plugin-class": "Pbx\\StoreInformation\\PbxStoreInformation",
+        "label": {
+            "en-GB": "Pbx Store Information"
+        },
+        "description": {
+            "en-GB": "Printbox shopware plugin to manage store information"
+        },
+        "manufacturerLink": {
+            "en-GB": "https://getprintbox.com"
+        },
+        "supportLink": {
+            "en-GB": "https://help.getprintbox.com"
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Pbx\\StoreInformation\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Pbx\\StoreInformation\\Test\\": "custom/static-plugins/PbxStoreInformation/tests/"
+        }
+    },
+    "config": {
+        "lock": false
+    },
+    "version": "dev-master"
+}

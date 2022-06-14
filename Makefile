@@ -72,7 +72,7 @@ urls :
 .PHONY : urls
 
 prod dev :
-	[ '@' = "$$APP_ENV" ] || sed -i "s/APP_ENV=.*/APP_ENV=$@/" .env
+	[ '@' = "$$APP_ENV" ] || sed -i "s/APP_ENV=.*/APP_ENV=\"$@\"/" .env
 .PHONY : prod dev
 
 recreate : compose-runtime
@@ -93,7 +93,7 @@ clean :
 .PHONY : clean
 
 purge : clean down purge-shadow
-	rm -fr stage1/app/public/dev stageX
+	rm -fr stageX
 	rm -f .env
 	rm -f compose.yml
 	rm -f compose.ide.dev.yml
@@ -129,10 +129,10 @@ Dockerfile compose.yml :
 initdb.d/dump.sql :
 	touch $@
 
-stage1/app/public/dev :
-	mkdir -p stage1/app/public/dev
+stageX/app/public/dev :
+	mkdir -p $@
 
-compose-runtime : Dockerfile compose.yml initdb.d/dump.sql stage1/app/public/dev
+compose-runtime : Dockerfile compose.yml initdb.d/dump.sql stageX/app/public/dev
 .PHONY : compose-runtime
 
 dev-check :
@@ -168,6 +168,11 @@ stageX/app : compose-runtime
 	docker compose cp -a noop:/app/composer.lock $@
 	mkdir -p $@/vendor
 	docker compose cp -a noop:/app/vendor $@
+	mkdir -p $@/tools
+	docker compose cp -a noop:/app/tools/composer.json $@/tools
+	docker compose cp -a noop:/app/tools/composer.lock $@/tools
+	mkdir -p $@/tools/vendor
+	docker compose cp -a noop:/app/tools/vendor $@/tools
 	for name in $$(yq '.static-plugins[].name' <plugins.yml); do
 	 mkdir -p "$@/custom/static-plugins/$${name}/vendor"
 	 docker compose cp -a "noop:/app/custom/static-plugins/$${name}/vendor" "$@/custom/static-plugins/$${name}/vendor"
@@ -200,7 +205,22 @@ stage1/app :
 	mkdir app
 	wget https://github.com/shopware/production/archive/refs/tags/v$${SHOPWARE_VERSION}.tar.gz -O - | tar -xzvC app \
 	 --exclude */.github \
-	 --exclude */.gitlab-ci \
+	 --exclude */.gitlab-ci/conf \
+	 --exclude */.gitlab-ci/e2e \
+	 --exclude */.gitlab-ci/tools/bin \
+	 --exclude */.gitlab-ci/tools/src \
+	 --exclude */.gitlab-ci/tools/tests \
+	 --exclude */.gitlab-ci/tools/console \
+	 --exclude */.gitlab-ci/tools/phpunit.xml.dist \
+	 --exclude */.gitlab-ci/build-nightly.sh \
+	 --exclude */.gitlab-ci/changed-files.sh \
+	 --exclude */.gitlab-ci/composer.nightly_override.json \
+	 --exclude */.gitlab-ci/install_store_plugin.bash \
+	 --exclude */.gitlab-ci/integration_jobs.yml \
+	 --exclude */.gitlab-ci/plugins.json \
+	 --exclude */.gitlab-ci/release_jobs.yml \
+	 --exclude */.gitlab-ci/split_repo.sh \
+	 --exclude */.gitlab-ci/test_base.yml \
 	 --exclude */artifacts \
 	 --exclude */.dockerignore \
 	 --exclude */.gitignore \
@@ -212,7 +232,13 @@ stage1/app :
 	 --exclude */config/packages \
 	 --exclude */config/secrets \
 	 --strip-components 1
+	mv app/.gitlab-ci/tools app/tools
+	rmdir app/.gitlab-ci
+	cp -r app/vendor app/tools/vendor
 .PHONY : stage1/app
+
+foo :
+	docker build -t ghcr.io/mistyfiky/shopware-prod:latest -f new.Dockerfile --build-arg APP_ENV=prod --build-arg SHOPWARE_COMPOSER_TOKEN="$$SHOPWARE_COMPOSER_TOKEN" $$DOCKER_BUILD_OPTS .
 
 define tableflip
 ( >&2 printf '%s\n\n\t%s\n\n' $1 '(╯°□°)╯︵ ┻━┻' && exit 1)

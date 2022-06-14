@@ -1,102 +1,160 @@
-ARG PHP_EXT_INSTALLER_VERSION=1.5.12
-ARG COMPOSER_VERSION=2.3.5
-ARG PHP_VERSION=8.1.5
-ARG APP_ENV=dev
 ARG NODE_VERSION=16.15.0
-ARG JQ_VERSION=1.5
+ARG PHP_VERSION=8.1.7
+ARG PHP_EXT_INSTALLER_VERSION=1.5.25
+ARG COMPOSER_VERSION=2.3.7
+ARG JQ_VERSION=1.6
+ARG APP_ENV=dev
 ARG USER_ID=1000
 ARG GROUP_ID=1000
-ARG PROJECT_REPO=https://github.com/mistyfiky/shopware
+ARG SHOPWARE_COMPOSER_TOKEN
 
 
-FROM mlocati/php-extension-installer:${PHP_EXT_INSTALLER_VERSION} AS php-ext-installer-img
-FROM scratch AS php-ext-installer
-COPY --from=php-ext-installer-img /usr/bin/install-php-extensions /usr/bin/install-php-extensions
+FROM node:${NODE_VERSION}-bullseye AS node
+FROM scratch AS node-root
+COPY --from=node /usr/lib /usr/lib
+COPY --from=node /usr/local/share /usr/local/share
+COPY --from=node /usr/local/lib /usr/local/lib
+COPY --from=node /usr/local/include /usr/local/include
+COPY --from=node /usr/local/bin /usr/local/bin
 
 
-FROM composer:${COMPOSER_VERSION} AS composer-img
-FROM scratch AS composer
-COPY --from=composer-img /usr/bin/composer /usr/bin/composer
+# STAGE 0
 
 
-FROM node:${NODE_VERSION}-alpine AS node-img
-FROM scratch AS node
-COPY --from=node-img /usr/lib /usr/lib
-COPY --from=node-img /usr/local/share /usr/local/share
-COPY --from=node-img /usr/local/lib /usr/local/lib
-COPY --from=node-img /usr/local/include /usr/local/include
-COPY --from=node-img /usr/local/bin /usr/local/bin
-
-
-FROM bash AS jq-img
-ARG JQ_VERSION
-RUN wget -O /usr/bin/jq https://github.com/stedolan/jq/releases/download/jq-${JQ_VERSION}/jq-linux64 && \
-    chmod 755 /usr/bin/jq
-FROM scratch AS jq
-COPY --from=jq-img /usr/bin/jq /usr/bin/jq
-
-
-FROM scratch AS stage
-WORKDIR /app
-
-
-FROM php:${PHP_VERSION}-fpm-alpine AS php-base
-COPY --from=php-ext-installer / /
+FROM php:${PHP_VERSION}-fpm-bullseye AS php-base
+ARG PHP_EXT_INSTALLER_VERSION
+ADD https://github.com/mlocati/docker-php-extension-installer/releases/download/${PHP_EXT_INSTALLER_VERSION}/install-php-extensions \
+    /usr/local/bin/install-php-extensions
+RUN chmod +x /usr/local/bin/install-php-extensions
 RUN IPE_GD_WITHOUTAVIF=1 install-php-extensions curl dom fileinfo gd iconv intl json libxml mbstring openssl pcre pdo pdo_mysql phar simplexml sodium xml zip zlib
 RUN install-php-extensions amqp apcu redis
 
 
 FROM php-base AS php-prod
 RUN install-php-extensions opcache
-RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
+RUN mv "${PHP_INI_DIR}/php.ini-production" "${PHP_INI_DIR}/php.ini"
 
 
 FROM php-base AS php-dev
 RUN install-php-extensions xdebug
-RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
+RUN mv "${PHP_INI_DIR}/php.ini-development" "${PHP_INI_DIR}/php.ini"
 
 
 FROM php-${APP_ENV} AS php
-RUN apk add --no-cache bash
+ARG COMPOSER_VERSION
+RUN install-php-extensions @composer-${COMPOSER_VERSION}
+ARG JQ_VERSION
+ADD https://github.com/stedolan/jq/releases/download/jq-${JQ_VERSION}/jq-linux64 /usr/local/bin/jq
+RUN chmod +x /usr/local/bin/jq
+ARG USER_ID
+ARG GROUP_ID
+RUN groupadd -g ${GROUP_ID} app && useradd -u ${USER_ID} -g ${GROUP_ID} -m app
+
+
+FROM scratch AS stage0-root
+COPY --from=php / /
+COPY stage0/usr /usr
+
+
+FROM scratch AS stage0
+COPY --from=stage0-root / /
+ENV PHP_INI_DIR=/usr/local/etc/php
+ENTRYPOINT ["docker-php-entrypoint"]
 WORKDIR /app
-
-
-FROM stage AS stage0
-COPY stage0 /
-
-
-FROM stage AS stage1
-COPY stage1 /
-
-
-FROM php AS dependencies
-COPY --from=composer / /
-COPY --from=stage1 / /
+STOPSIGNAL SIGQUIT
+EXPOSE 9000
+CMD ["php-fpm"]
+ARG USER_ID
+ARG GROUP_ID
+USER ${USER_ID}:${GROUP_ID}
 ARG APP_ENV
 ENV APP_ENV=${APP_ENV} \
-    COMPOSER_ALLOW_SUPERUSER=1
+    APP_DEBUG="0"
+
+
+# STAGE 1
+
+
+FROM stage0 AS dependencies
+ARG USER_ID
+ARG GROUP_ID
+COPY --chown=${USER_ID}:${GROUP_ID} stage1/app/composer.json stage1/app/composer.lock /app/
+COPY --chown=${USER_ID}:${GROUP_ID} stage1/app/tools/composer.json stage1/app/tools/composer.lock /app/tools/
 ARG PHP_VERSION
 RUN composer config platform.php "$PHP_VERSION" && \
-    composer require --no-install --no-scripts php "$PHP_VERSION" && \
-    composer remove --no-update --no-scripts shopware/recovery
-{{#static-plugins}}
-COPY stage2/app/custom/static-plugins/{{name}}/composer.json custom/static-plugins/{{name}}/composer.json
-{{/static-plugins}}
-{{#composer-plugins}}
-RUN composer require --no-install --no-scripts {{name}}:{{version}}
-{{/composer-plugins}}
+composer require --no-install --no-scripts "php:${PHP_VERSION}" && \
+composer remove --no-install --no-scripts shopware/recovery
+RUN composer require -d tools --no-install -W \
+    "php:${PHP_VERSION}" \
+    "phpunit/phpunit:$(jq -r '.["require-dev"]["phpunit/phpunit"]' composer.json)"
 
 
-FROM php AS vendor-base
-COPY --from=composer / /
-COPY --from=stage1 / /
-COPY --from=dependencies /app/composer.json /app/composer.lock ./
-ARG APP_ENV
-ENV APP_ENV=${APP_ENV} \
-    COMPOSER_ALLOW_SUPERUSER=1
+FROM scratch AS stage1-root
+ARG USER_ID
+ARG GROUP_ID
+COPY --chown=${USER_ID}:${GROUP_ID} stage1/app /app
+COPY --from=dependencies /app/composer.json /app/composer.lock /app/
+COPY --from=dependencies /app/tools/composer.json /app/tools/composer.lock /app/tools/
+
+
+FROM stage0 AS stage1
+COPY --from=stage1-root / /
+
+
+# STAGE 2
+
+
+FROM stage1 AS static-plugins-base
+ARG USER_ID
+ARG GROUP_ID
 {{#static-plugins}}
-COPY stage2/app/custom/static-plugins/{{name}}/composer.json custom/static-plugins/{{name}}/composer.json
+COPY --chown=${USER_ID}:${GROUP_ID} \
+     stage2/app/custom/static-plugins/{{name}}/composer.json \
+     /app/custom/static-plugins/{{name}}/composer.json
 {{/static-plugins}}
+
+
+FROM static-plugins-base AS static-plugins-prod
+{{#static-plugins}}
+RUN name=$(jq -r '.name' custom/static-plugins/{{name}}/composer.json) && \
+    version=$(jq -r '.version' custom/static-plugins/{{name}}/composer.json) && \
+    composer require --no-scripts --update-no-dev "${name}:${version}"
+{{/static-plugins}}
+
+
+FROM static-plugins-base AS static-plugins-dev
+{{#static-plugins}}
+RUN name=$(jq -r '.name' custom/static-plugins/{{name}}/composer.json) && \
+    version=$(jq -r '.version' custom/static-plugins/{{name}}/composer.json) && \
+    composer require --no-scripts "${name}:${version}"
+{{/static-plugins}}
+
+
+FROM static-plugins-${APP_ENV} AS static-plugins
+
+
+FROM static-plugins AS store-plugins-base
+ARG SHOPWARE_COMPOSER_TOKEN
+RUN composer config repositories.shopware-packages '{"type": "composer", "url": "https://packages.shopware.com"}' && \
+    composer config bearer.packages.shopware.com "${SHOPWARE_COMPOSER_TOKEN}"
+
+
+FROM store-plugins-base AS store-plugins-prod
+{{#store-plugins}}
+RUN composer require --no-scripts --update-no-dev {{package}}:{{version}}
+{{/store-plugins}}
+
+
+FROM store-plugins-base AS store-plugins-dev
+{{#store-plugins}}
+RUN composer require --no-scripts {{package}}:{{version}}
+{{/store-plugins}}
+
+
+FROM store-plugins-${APP_ENV} AS store-plugins
+
+
+FROM store-plugins AS vendor-base
 
 
 FROM vendor-base AS vendor-prod
@@ -105,119 +163,157 @@ RUN composer install --no-interaction --optimize-autoloader --no-scripts --no-de
 
 FROM vendor-base AS vendor-dev
 RUN composer install --no-interaction --optimize-autoloader --no-scripts
-{{#static-plugins}}
-RUN composer -d custom/static-plugins/{{name}} dump-autoload --dev && \
-    touch custom/static-plugins/{{name}}/vendor/composer/InstalledVersions.php
-{{/static-plugins}}
+RUN composer install -d tools --no-interaction --optimize-autoloader
 
 
 FROM vendor-${APP_ENV} AS vendor
 
 
-FROM vendor AS bundle-dump
-COPY stage2/app/custom/static-plugins custom/static-plugins
-RUN bin/ci bundle:dump
-
-
-FROM stage AS stage2
-COPY stage2 /
-COPY --from=dependencies /app/composer.json /app/composer.lock ./
-COPY --from=vendor /app/vendor vendor
-COPY --from=bundle-dump /app/var/plugins.json var/plugins.json
-
-
-FROM php AS node_modules
-COPY --from=node / /
-COPY --from=vendor /app/vendor vendor
-ENV PUPPETEER_SKIP_DOWNLOAD=1
-RUN npm clean-install --prefix vendor/shopware/administration/Resources/app/administration
+FROM stage1-root AS stage2-root
+COPY --from=store-plugins /app/composer.json /app/composer.lock /app/
+COPY --from=vendor /app/vendor /app/vendor
+COPY --from=vendor /app/tools/vendor /app/tools/vendor
 {{#static-plugins}}
-COPY stage2/app/custom/static-plugins/{{name}}/src/Resources/app/administration/package.json \
-     stage2/app/custom/static-plugins/{{name}}/src/Resources/app/administration/package-lock.json \
-     custom/static-plugins/{{name}}/src/Resources/app/administration/
-RUN npm clean-install --prefix custom/static-plugins/{{name}}/src/Resources/app/administration
+COPY --chown=${USER_ID}:${GROUP_ID} stage2/app/custom/static-plugins/{{name}} /app/custom/static-plugins/{{name}}
 {{/static-plugins}}
 
 
-FROM php AS assets
-COPY --from=node / /
-COPY --from=stage1 / /
-COPY --from=stage2 / /
-COPY --from=node_modules /app/vendor/shopware/administration/Resources/app/administration/node_modules vendor/shopware/administration/Resources/app/administration/node_modules
+FROM stage1 AS stage2
+COPY --from=stage2-root / /
+
+
+# STAGE 3
+
+
+FROM stage0 AS node_modules-base
+COPY --from=node-root / /
+ENV PUPPETEER_SKIP_DOWNLOAD=1
+
+
+FROM node_modules-base AS node_modules-administration
+WORKDIR vendor/shopware/administration/Resources/app/administration
+USER root
+ARG USER_ID
+ARG GROUP_ID
+RUN chown ${USER_ID}:${GROUP_ID} .
+USER ${USER_ID}:${GROUP_ID}
+RUN mkdir node_modules
+COPY --from=stage2 \
+     /app/vendor/shopware/administration/Resources/app/administration/package.json \
+     /app/vendor/shopware/administration/Resources/app/administration/package-lock.json \
+     /app/vendor/shopware/administration/Resources/app/administration/
+RUN npm clean-install
+
+
 {{#static-plugins}}
-COPY --from=node_modules /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
+FROM node_modules-base AS node_modules-{{name}}
+WORKDIR /app/custom/static-plugins/{{name}}/src/Resources/app/administration
+USER root
+ARG USER_ID
+ARG GROUP_ID
+RUN chown ${USER_ID}:${GROUP_ID} .
+USER ${USER_ID}:${GROUP_ID}
+RUN mkdir node_modules
+COPY --chown=${USER_ID}:${GROUP_ID} \
+     stage2/app/custom/static-plugins/{{name}}/src/Resources/app/administration/package.json \
+     stage2/app/custom/static-plugins/{{name}}/src/Resources/app/administration/package-lock.json \
+     /app/custom/static-plugins/{{name}}/src/Resources/app/administration/
+RUN npm clean-install
+{{/static-plugins}}
+
+
+{{#store-plugins}}
+FROM node_modules-base AS node_modules-{{name}}
+WORKDIR /app/vendor/{{package}}/src/Resources/app/administration/
+USER root
+ARG USER_ID
+ARG GROUP_ID
+RUN chown ${USER_ID}:${GROUP_ID} .
+USER ${USER_ID}:${GROUP_ID}
+RUN mkdir node_modules
+COPY --from=stage2 \
+     /app/vendor/{{package}}/src/Resources/app/administration/package.json \
+     /app/vendor/{{package}}/src/Resources/app/administration/package-lock.json \
+     /app/vendor/{{package}}/src/Resources/app/administration/
+RUN npm clean-install
+{{/store-plugins}}
+
+
+FROM stage2 AS assets-base
+ARG SHOPWARE_COMPOSER_TOKEN
+RUN composer config bearer.packages.shopware.com "${SHOPWARE_COMPOSER_TOKEN}"
+
+
+FROM assets-base AS assets-base-prod
+{{#store-plugins}}
+RUN composer remove --no-scripts --update-no-dev {{package}}
+{{/store-plugins}}
+
+
+FROM assets-base AS assets-base-dev
+{{#store-plugins}}
+RUN composer remove --no-scripts {{package}}
+{{/store-plugins}}
+
+
+FROM assets-base-${APP_ENV} AS assets
+COPY --from=node-root / /
+RUN bin/ci bundle:dump
+COPY --from=node_modules-administration \
+     /app/vendor/shopware/administration/Resources/app/administration/node_modules \
+     /app/vendor/shopware/administration/Resources/app/administration/node_modules
+{{#static-plugins}}
+COPY --from=node_modules-{{name}} \
+     /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules \
+     /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
 {{/static-plugins}}
 WORKDIR /app/vendor/shopware/administration/Resources/app/administration
 ENV PROJECT_ROOT=/app \
-    SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS=1
+    SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS=1 \
+    PUPPETEER_SKIP_DOWNLOAD=1
 RUN npm run build
 
 
-FROM stage AS stage3
-COPY stage3 /
-ARG APP_ENV
-COPY stage3-${APP_ENV} /
+FROM stage2 AS bundle-dump
+RUN bin/ci bundle:dump
+
+
+FROM stage2-root AS stage3-root
 {{#static-plugins}}
-COPY --from=assets /app/custom/static-plugins/{{name}}/src/Resources/public custom/static-plugins/{{name}}/src/Resources/public
+COPY --from=assets \
+     /app/custom/static-plugins/{{name}}/src/Resources/public \
+     /app/custom/static-plugins/{{name}}/src/Resources/public
+COPY --from=bundle-dump /app/var/plugins.json /app/var/plugins.json
 {{/static-plugins}}
 
 
-FROM scratch AS base
-COPY --from=php / /
-COPY --from=stage0 / /
+FROM stage2 AS stage3
+COPY --from=stage3-root / /
 
 
-FROM base AS base-prod
+# STAGE 4
 
 
-FROM base AS base-dev
-COPY --from=composer / /
-COPY --from=node / /
-COPY --from=jq / /
-
-
-FROM base-${APP_ENV} as common
+FROM stage3-root AS stage4-root
+COPY stage4/usr /usr
 ARG USER_ID
 ARG GROUP_ID
-COPY --from=stage1 --chown=${USER_ID}:${GROUP_ID} / /
-COPY --from=stage2 --chown=${USER_ID}:${GROUP_ID} / /
-COPY --from=stage3 /usr /usr
-COPY --from=stage3 --chown=${USER_ID}:${GROUP_ID} /app /app
-
-
-FROM common as prod
-
-
-FROM common as dev
-ARG USER_ID
-ARG GROUP_ID
-# FIXME npm cache
-COPY --from=node_modules --chown=${USER_ID}:${GROUP_ID} /app/vendor/shopware/administration/Resources/app/administration/node_modules /app/vendor/shopware/administration/Resources/app/administration/node_modules
-{{#static-plugins}}
-COPY --from=vendor --chown=${USER_ID}:${GROUP_ID} /app/custom/static-plugins/{{name}}/vendor /app/custom/static-plugins/{{name}}/vendor
-COPY --from=node_modules --chown=${USER_ID}:${GROUP_ID} /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
-{{/static-plugins}}
-
-
-FROM ${APP_ENV} as root
-
-
-FROM scratch
-COPY --from=root / /
-ARG USER_ID
-ARG GROUP_ID
-USER ${USER_ID}:${GROUP_ID}
-ENV PHP_INI_DIR=/usr/local/etc/php
-ENTRYPOINT ["docker-php-entrypoint"]
-WORKDIR /app
-STOPSIGNAL SIGQUIT
-EXPOSE 9000
-CMD ["php-fpm"]
+COPY --chown=${USER_ID}:${GROUP_ID} stage4/app /app
 ARG APP_ENV
-ENV APP_ENV=${APP_ENV} \
-    APP_DEBUG="0" \
+COPY stage4/usr-${APP_ENV} /usr
+
+
+FROM stage3 AS stage4
+COPY --from=stage4-root / /
+
+
+# STAGE X
+
+
+FROM stage0 AS base
+COPY --from=stage4-root / /
+ENV DISABLE_EXTENSIONS="1" \
     BLUE_GREEN_DEPLOYMENT="0" \
-    DISABLE_EXTENSIONS="1" \
     SHOPWARE_ES_HOSTS="" \
     SHOPWARE_ES_ENABLED="0" \
     SHOPWARE_ES_INDEXING_ENABLED="0" \
@@ -225,4 +321,26 @@ ENV APP_ENV=${APP_ENV} \
     SHOPWARE_HTTP_CACHE_ENABLED="1" \
     SHOPWARE_HTTP_DEFAULT_TTL="7200" \
     SHOPWARE_CDN_STRATEGY_DEFAULT="id"
-LABEL org.opencontainers.image.source=$PROJECT_REPO
+
+
+FROM base AS prod
+
+
+FROM base AS dev
+COPY --from=node-root / /
+COPY --from=node_modules-administration \
+     /app/vendor/shopware/administration/Resources/app/administration/node_modules \
+     /app/vendor/shopware/administration/Resources/app/administration/node_modules
+{{#static-plugins}}
+COPY --from=node_modules-{{name}} \
+     /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules \
+     /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
+{{/static-plugins}}
+{{#store-plugins}}
+COPY --from=node_modules-{{name}} \
+     /app/vendor/{{package}}/src/Resources/app/administration/node_modules \
+     /app/vendor/{{package}}/src/Resources/app/administration/node_modules
+{{/store-plugins}}
+
+
+FROM ${APP_ENV}

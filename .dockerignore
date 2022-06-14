@@ -2,13 +2,10 @@
 !/stage0
 !/stage1
 !/stage2
-!/stage3
-!/stage3-dev
-!/stage3-prod
+!/stage4
 # shadow
 /stage1/app/config/jwt
 /stage1/app/config/packages
-/stage1/app/public/dev
 /stage1/app/bin/install.sh
 /stage1/app/bin/update.sh
 /stage1/app/bin/wait-for-it.sh
