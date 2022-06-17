@@ -1,10 +1,17 @@
 includes:
-    - ../.common/phpstan.neon
+    - %ShopwareRoot%/vendor/phpstan/phpstan/conf/bleedingEdge.neon
 
 parameters:
-    paths:
-        - src
+    level: 8
+    tmpDir: var/cache/phpstan
+    inferPrivatePropertyTypeFromConstructor: true
+    checkMissingIterableValueType: false
+    reportUnmatchedIgnoredErrors: false
+
     symfony:
+        constant_hassers: false
         # the placeholder "%ShopwareHashedCacheDir%" will be replaced on execution by bin/phpstan-config-generator.php script
         container_xml_path: '../../..%ShopwareHashedCacheDir%/%ShopwareKernelClass%DevDebugContainer.xml'
-    tmpDir: .phpstan.cache
+
+    bootstrapFiles:
+        -   bin/static-analyze-autoloader.php

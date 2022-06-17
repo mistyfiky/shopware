@@ -1,2 +1,2 @@
-grant all privileges on *.* TO 'user'@'%';
+grant all privileges on *.* to 'user'@'%' with grant option;
 flush privileges;

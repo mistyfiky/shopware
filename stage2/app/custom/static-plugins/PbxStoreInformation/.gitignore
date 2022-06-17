@@ -1,5 +1,3 @@
-/.ecs.cache/
-/.phpstan.cache/
-/.eslintcache
+/var/
 /.phpunit.result.cache
 /phpstan.neon

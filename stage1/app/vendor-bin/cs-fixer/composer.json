@@ -1,0 +1,13 @@
+{
+    "require-dev": {
+        "kubawerlos/php-cs-fixer-custom-fixers": "v3.8.1",
+        "symplify/easy-coding-standard": "10.0.19",
+        "friendsofphp/php-cs-fixer": "v3.6.0"
+    },
+    "config": {
+        "platform": {
+            "php": "7.4.3"
+        }
+    },
+    "sort-packages": true
+}

@@ -92,7 +92,9 @@ clean :
 	rm -f initdb.d/dump_*.sql
 .PHONY : clean
 
-purge : clean down purge-shadow
+purge : down purge-shadow
+	rm -f Dockerfile
+	rm -f initdb.d/dump_*.sql
 	rm -fr stageX
 	rm -f .env
 	rm -f compose.yml
@@ -204,41 +206,25 @@ stage1/app :
 	rm -fr app
 	mkdir app
 	wget https://github.com/shopware/production/archive/refs/tags/v$${SHOPWARE_VERSION}.tar.gz -O - | tar -xzvC app \
-	 --exclude */.github \
-	 --exclude */.gitlab-ci/conf \
-	 --exclude */.gitlab-ci/e2e \
-	 --exclude */.gitlab-ci/tools/bin \
-	 --exclude */.gitlab-ci/tools/src \
-	 --exclude */.gitlab-ci/tools/tests \
-	 --exclude */.gitlab-ci/tools/console \
-	 --exclude */.gitlab-ci/tools/phpunit.xml.dist \
-	 --exclude */.gitlab-ci/build-nightly.sh \
-	 --exclude */.gitlab-ci/changed-files.sh \
-	 --exclude */.gitlab-ci/composer.nightly_override.json \
-	 --exclude */.gitlab-ci/install_store_plugin.bash \
-	 --exclude */.gitlab-ci/integration_jobs.yml \
-	 --exclude */.gitlab-ci/plugins.json \
-	 --exclude */.gitlab-ci/release_jobs.yml \
-	 --exclude */.gitlab-ci/split_repo.sh \
-	 --exclude */.gitlab-ci/test_base.yml \
-	 --exclude */artifacts \
-	 --exclude */.dockerignore \
-	 --exclude */.gitignore \
-	 --exclude */.gitlab-ci.yml \
-	 --exclude */Dockerfile \
-	 --exclude */docker-compose.yml \
-	 --exclude */README.md \
-	 --exclude */config/jwt \
-	 --exclude */config/packages \
-	 --exclude */config/secrets \
+	 --exclude '*/.github' \
+	 --exclude '*/.gitlab-ci' \
+	 --exclude '*/artifacts' \
+	 --exclude '*/.dockerignore' \
+	 --exclude '*/.gitignore' \
+	 --exclude '*/.gitlab-ci.yml' \
+	 --exclude '*/Dockerfile' \
+	 --exclude '*/docker-compose.yml' \
+	 --exclude '*/README.md' \
+	 --exclude '*/config/jwt' \
+	 --exclude '*/config/packages' \
+	 --exclude '*/config/secrets' \
 	 --strip-components 1
-	mv app/.gitlab-ci/tools app/tools
-	rmdir app/.gitlab-ci
-	cp -r app/vendor app/tools/vendor
+	wget https://github.com/shopware/platform/archive/refs/tags/v$${SHOPWARE_VERSION}.tar.gz -O - | tar -xzvC app \
+	 --strip-components 1 \
+	 --wildcards \
+	 '*/vendor-bin/cs-fixer/composer.json' \
+	 '*/vendor-bin/psalm/composer.json'
 .PHONY : stage1/app
-
-foo :
-	docker build -t ghcr.io/mistyfiky/shopware-prod:latest -f new.Dockerfile --build-arg APP_ENV=prod --build-arg SHOPWARE_COMPOSER_TOKEN="$$SHOPWARE_COMPOSER_TOKEN" $$DOCKER_BUILD_OPTS .
 
 define tableflip
 ( >&2 printf '%s\n\n\t%s\n\n' $1 '(╯°□°)╯︵ ┻━┻' && exit 1)
