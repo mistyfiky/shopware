@@ -2,7 +2,7 @@
 !/stage0
 !/stage1
 !/stage2
-!/stage4
+!/stage3
 # shadow
 /stage1/app/config/jwt
 /stage1/app/config/packages

@@ -62,13 +62,13 @@ x-sw-defaults: &sw-defaults
 {{#static-plugins}}
     - "./stage2/app/custom/static-plugins/{{name}}:/app/custom/static-plugins/{{name}}"
 {{/static-plugins}}
-    - "./stage4/app/bin/install.sh:/app/bin/install.sh"
-    - "./stage4/app/bin/update.sh:/app/bin/update.sh"
-    - "./stage4/app/bin/wait-for-it.sh:/app/bin/wait-for-it.sh"
-    - "./stage4/app/config/services/custom.xml:/app/config/services/custom.xml"
-    - "./stage4/app/config/packages:/app/config/packages"
-    - "./stage4/app/config/services.xml:/app/config/services.xml"
-    - "./stage4/app/install.lock:/app/install.lock"
+    - "./stage3/app/bin/install.sh:/app/bin/install.sh"
+    - "./stage3/app/bin/update.sh:/app/bin/update.sh"
+    - "./stage3/app/bin/wait-for-it.sh:/app/bin/wait-for-it.sh"
+    - "./stage3/app/config/services/custom.xml:/app/config/services/custom.xml"
+    - "./stage3/app/config/packages:/app/config/packages"
+    - "./stage3/app/config/services.xml:/app/config/services.xml"
+    - "./stage3/app/install.lock:/app/install.lock"
     - "./stageX/app/public/dev:/app/public/dev"
 {{#static-plugins}}
     - "stageX_{{name}}_vendor:/app/custom/static-plugins/{{name}}/vendor"
@@ -96,7 +96,7 @@ services:
     volumes:
       - "dbdata:/var/lib/mysql"
       - "./initdb.d/grant.sql:/docker-entrypoint-initdb.d/grant.sql"
-      - "./initdb.d/dump.sql:/docker-entrypoint-initdb.d/dump.sql"
+      - "./dump.sql:/docker-entrypoint-initdb.d/dump.sql"
 
   mq:
     environment:

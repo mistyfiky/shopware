@@ -88,19 +88,18 @@ update : compose-runtime
 .PHONY : update
 
 clean :
-	rm -f Dockerfile
-	rm -f initdb.d/dump_*.sql
+	rm -f dump_*.sql
 .PHONY : clean
 
 purge : down purge-shadow
-	rm -f Dockerfile
-	rm -f initdb.d/dump_*.sql
-	rm -fr stageX
+	$(MAKE) --no-print-directory clean
 	rm -f .env
-	rm -f compose.yml
 	rm -f compose.ide.dev.yml
+	rm -f compose.yml
 	rm -f config.json
-	rm -f initdb.d/dump.sql
+	rm -f Dockerfile
+	rm -f dump.sql
+	rm -fr stageX
 .PHONY : purge
 
 watch-administration : dev-check compose-runtime
@@ -128,13 +127,13 @@ Dockerfile compose.yml :
 	mustache plugins.yml $@.mustache >$@
 .PHONY : Dockerfile compose.yml
 
-initdb.d/dump.sql :
+dump.sql :
 	touch $@
 
 stageX/app/public/dev :
 	mkdir -p $@
 
-compose-runtime : Dockerfile compose.yml initdb.d/dump.sql stageX/app/public/dev
+compose-runtime : Dockerfile compose.yml dump.sql stageX/app/public/dev
 .PHONY : compose-runtime
 
 dev-check :
@@ -197,8 +196,8 @@ db-check :
 .PHONY : db-check
 
 db-dump : db-check compose-runtime
-	[ ! -s initdb.d/dump.sql ] || mv initdb.d/dump.sql dump_$$(date +%s).sql
-	docker compose exec db mysqldump -uroot -ppassword shopware 1>initdb.d/dump.sql
+	[ ! -s dump.sql ] || mv dump.sql dump_$$(date +%s).sql
+	docker compose exec db mysqldump -uroot -ppassword shopware 1>dump.sql
 .PHONY : db-dump
 
 stage1/app :

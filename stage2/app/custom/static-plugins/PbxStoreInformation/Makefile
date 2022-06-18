@@ -8,6 +8,12 @@ help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 .PHONY: help
 
+clean: ## Clean temporary files
+	rm -fr var
+	rm -f .phpunit.result.cache
+	rm -f phpstan.neon
+.PHONY: clean
+
 ecs-fix: ## Run easy coding standard on php
 	@php $(PROJECT_ROOT)/vendor/bin/ecs check --fix --config=$(PROJECT_ROOT)/easy-coding-standard.php src tests
 	@php $(PROJECT_ROOT)/vendor/bin/ecs check --fix src tests

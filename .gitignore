@@ -4,8 +4,8 @@
 /compose.ide.dev.yml
 /config.json
 /Dockerfile
-/initdb.d/dump.sql
-/initdb.d/dump_*.sql
+/dump.sql
+/dump_*.sql
 # shadow
 /stage1/app/config/jwt
 /stage1/app/config/packages
