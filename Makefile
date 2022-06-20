@@ -169,11 +169,12 @@ stageX/app : compose-runtime
 	docker compose cp -a noop:/app/composer.lock $@
 	mkdir -p $@/vendor
 	docker compose cp -a noop:/app/vendor $@
-	mkdir -p $@/tools
-	docker compose cp -a noop:/app/tools/composer.json $@/tools
-	docker compose cp -a noop:/app/tools/composer.lock $@/tools
-	mkdir -p $@/tools/vendor
-	docker compose cp -a noop:/app/tools/vendor $@/tools
+	mkdir -p $@/vendor-bin/cs-fixer/vendor
+	docker compose cp -a noop:/app/vendor-bin/cs-fixer/composer.json $@/vendor-bin/cs-fixer
+	docker compose cp -a noop:/app/vendor-bin/cs-fixer/vendor $@/vendor-bin/cs-fixer
+	mkdir -p $@/vendor-bin/psalm/vendor
+	docker compose cp -a noop:/app/vendor-bin/psalm/composer.json $@/vendor-bin/psalm
+	docker compose cp -a noop:/app/vendor-bin/psalm/vendor $@/vendor-bin/psalm
 	for name in $$(yq '.static-plugins[].name' <plugins.yml); do
 	 mkdir -p "$@/custom/static-plugins/$${name}/vendor"
 	 docker compose cp -a "noop:/app/custom/static-plugins/$${name}/vendor" "$@/custom/static-plugins/$${name}/vendor"
