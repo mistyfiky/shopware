@@ -124,7 +124,7 @@ kaniko : compose-runtime config.json
 .PHONY : kaniko
 
 Dockerfile compose.yml :
-	mustache plugins.yml $@.mustache >$@
+	mustache demo.yml $@.mustache >$@
 .PHONY : Dockerfile compose.yml
 
 dump.sql :
@@ -175,7 +175,7 @@ stageX/app : compose-runtime
 	mkdir -p $@/vendor-bin/psalm/vendor
 	docker compose cp -a noop:/app/vendor-bin/psalm/composer.json $@/vendor-bin/psalm
 	docker compose cp -a noop:/app/vendor-bin/psalm/vendor $@/vendor-bin/psalm
-	for name in $$(yq '.static-plugins[].name' <plugins.yml); do
+	for name in $$(yq '.static-plugins[].name' <demo.yml); do
 	 mkdir -p "$@/custom/static-plugins/$${name}/vendor"
 	 docker compose cp -a "noop:/app/custom/static-plugins/$${name}/vendor" "$@/custom/static-plugins/$${name}/vendor"
 	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules"
