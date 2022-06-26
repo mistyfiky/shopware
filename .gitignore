@@ -2,7 +2,6 @@
 /.env
 /compose.yml
 /compose.ide.dev.yml
-/config.json
 /Dockerfile
 /dump.sql
 /dump_*.sql

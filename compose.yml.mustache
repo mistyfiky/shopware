@@ -73,7 +73,6 @@ x-sw-defaults: &sw-defaults
 {{#static-plugins}}
     - "stageX_{{name}}_vendor:/app/custom/static-plugins/{{name}}/vendor"
     - "stageX_{{name}}_public:/app/custom/static-plugins/{{name}}/src/Resources/public"
-# FIXME prod
     - "stageX_{{name}}_node_modules:/app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules"
 {{/static-plugins}}
 
@@ -220,6 +219,5 @@ volumes:
 {{#static-plugins}}
   stageX_{{name}}_vendor:
   stageX_{{name}}_public:
-# FIXME prod
   stageX_{{name}}_node_modules:
 {{/static-plugins}}

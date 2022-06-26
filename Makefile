@@ -4,8 +4,7 @@ export BASH_ENV = $(PWD)/bin/activate
 .ONESHELL :
 .DEFAULT_GOAL := help
 
-export SHOPWARE_VERSION = 6.4.11.1
-export KANIKO_VERSION = 1.8.1
+export SHOPWARE_VERSION = 6.4.12.0
 
 help : export BASH_ENV =
 help :
@@ -27,7 +26,6 @@ help :
 	 'purge' 'down and remove all runtime files' \
 	 'watch-administration' 'run administration watch' \
 	 'cli' 'open shell inside container' \
-	 'kaniko' 'build shopware image with kaniko' \
 	 && :
 	@>&2 printf '\nexamples:\n\n'
 	@>&2 printf '%d. %s\n\n\t%s\n\n' \
@@ -96,7 +94,6 @@ purge : down purge-shadow
 	rm -f .env
 	rm -f compose.ide.dev.yml
 	rm -f compose.yml
-	rm -f config.json
 	rm -f Dockerfile
 	rm -f dump.sql
 	rm -fr stageX
@@ -109,19 +106,6 @@ watch-administration : dev-check compose-runtime
 cli : compose-runtime
 	docker compose run --rm cli
 .PHONY : cli
-
-kaniko : compose-runtime config.json
-	SHOPWARE_IMAGE=$$(docker compose --profile platform config | yq '.services.shopware.image')
-	docker run --rm -it \
-	 -v "$$(pwd)":/workspace \
-	 -v "$$(pwd)/config.json":/kaniko/.docker/config.json:ro \
-	 gcr.io/kaniko-project/executor:v$${KANIKO_VERSION} \
-	 --dockerfile=/workspace/Dockerfile \
-	 --context=dir:///workspace/ \
-	 --destination="$$SHOPWARE_IMAGE" \
-	 --cache=true \
-	 --build-arg APP_ENV="$$APP_ENV"
-.PHONY : kaniko
 
 Dockerfile compose.yml :
 	mustache demo.yml $@.mustache >$@
@@ -187,11 +171,6 @@ stageX/app : compose-runtime
 ide : compose.ide.dev.yml stageX/app
 .PHONY : ide
 
-config.json :
-	@read -rp 'GitHub username: ' USER
-	@read -rsp 'GitHub PAT: ' PASSWORD
-	@echo -n "{\"auths\":{\"ghcr.io\":{\"auth\":\"$$(echo $$USERNAME:$$PASSWORD | base64)\"}}}" >$@
-
 db-check :
 	@[ -n "$$( docker compose ps db -q --status running 2>/dev/null)" ] || $(call tableflip,'db service is not running')
 .PHONY : db-check
@@ -206,24 +185,28 @@ stage1/app :
 	rm -fr app
 	mkdir app
 	wget https://github.com/shopware/production/archive/refs/tags/v$${SHOPWARE_VERSION}.tar.gz -O - | tar -xzvC app \
-	 --exclude '*/.github' \
-	 --exclude '*/.gitlab-ci' \
-	 --exclude '*/artifacts' \
-	 --exclude '*/.dockerignore' \
-	 --exclude '*/.gitignore' \
-	 --exclude '*/.gitlab-ci.yml' \
-	 --exclude '*/Dockerfile' \
-	 --exclude '*/docker-compose.yml' \
-	 --exclude '*/README.md' \
-	 --exclude '*/config/jwt' \
-	 --exclude '*/config/packages' \
-	 --exclude '*/config/secrets' \
+	 --exclude "production-$${SHOPWARE_VERSION}/.github" \
+	 --exclude "production-$${SHOPWARE_VERSION}/.gitlab-ci" \
+	 --exclude "production-$${SHOPWARE_VERSION}/artifacts" \
+	 --exclude "production-$${SHOPWARE_VERSION}/.dockerignore" \
+	 --exclude "production-$${SHOPWARE_VERSION}/.gitignore" \
+	 --exclude "production-$${SHOPWARE_VERSION}/.gitlab-ci.yml" \
+	 --exclude "production-$${SHOPWARE_VERSION}/Dockerfile" \
+	 --exclude "production-$${SHOPWARE_VERSION}/docker-compose.yml" \
+	 --exclude "production-$${SHOPWARE_VERSION}/README.md" \
+	 --exclude "production-$${SHOPWARE_VERSION}/bin/.gitignore" \
+	 --exclude "production-$${SHOPWARE_VERSION}/config/jwt" \
+	 --exclude "production-$${SHOPWARE_VERSION}/config/packages" \
+	 --exclude "production-$${SHOPWARE_VERSION}/config/secrets" \
+	 --exclude "production-$${SHOPWARE_VERSION}/config/README.md" \
 	 --strip-components 1
-	wget https://github.com/shopware/platform/archive/refs/tags/v$${SHOPWARE_VERSION}.tar.gz -O - | tar -xzvC app \
-	 --strip-components 1 \
-	 --wildcards \
-	 '*/vendor-bin/cs-fixer/composer.json' \
-	 '*/vendor-bin/psalm/composer.json'
+	mkdir app/platform
+	wget https://raw.githubusercontent.com/shopware/platform/v$${SHOPWARE_VERSION}/composer.json -O app/platform/composer.json
+	mkdir app/vendor-bin
+	mkdir app/vendor-bin/cs-fixer
+	wget https://raw.githubusercontent.com/shopware/platform/v$${SHOPWARE_VERSION}/vendor-bin/cs-fixer/composer.json -O app/vendor-bin/cs-fixer/composer.json
+	mkdir app/vendor-bin/psalm
+	wget https://raw.githubusercontent.com/shopware/platform/v$${SHOPWARE_VERSION}/vendor-bin/psalm/composer.json -O app/vendor-bin/psalm/composer.json
 .PHONY : stage1/app
 
 define tableflip
