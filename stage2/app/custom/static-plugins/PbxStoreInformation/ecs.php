@@ -1,26 +1,21 @@
-<?php declare(strict_types=1);
+<?php
 
-use PhpCsFixer\Fixer\Alias\MbStrFunctionsFixer;
-use PhpCsFixer\Fixer\Comment\HeaderCommentFixer;
-use PhpCsFixer\Fixer\FunctionNotation\NativeFunctionInvocationFixer;
-use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+declare(strict_types=1);
 
-return static function (ContainerConfigurator $containerConfigurator): void {
-    $services = $containerConfigurator->services();
+use Symplify\EasyCodingStandard\Config\ECSConfig;
+use Symplify\EasyCodingStandard\ValueObject\Option;
+use Symplify\EasyCodingStandard\ValueObject\Set\SetList;
 
-    $services->set(NativeFunctionInvocationFixer::class)
-        ->call('configure', [[
-            'include' => [NativeFunctionInvocationFixer::SET_ALL],
-            'scope' => 'namespaced',
-        ]]);
+return static function (ECSConfig $ecsConfig): void {
+    $parameters = $ecsConfig->parameters();
+    $parameters->set(Option::CACHE_DIRECTORY, __DIR__ . '/var/cache/cs_fixer');
+    $parameters->set(Option::CACHE_NAMESPACE, 'PbxStoreInformation');
 
-    $services->set(MbStrFunctionsFixer::class);
+    $ecsConfig->paths([
+        __DIR__ . '/src',
+        __DIR__ . '/tests',
+        __DIR__ . '/ecs.php',
+    ]);
 
-    $parameters = $containerConfigurator->parameters();
-
-    $parameters->set('cache_directory', __DIR__ . '/var/cache/cs_fixer');
-
-    $parameters->set('cache_namespace', 'PbxStoreInformation');
-
-    $parameters->set('paths', [__DIR__ . '/src', __DIR__ . '/tests']);
+    $ecsConfig->sets([SetList::PSR_12]);
 };

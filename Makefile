@@ -193,6 +193,7 @@ stage1/app :
 	 --exclude "production-$${SHOPWARE_VERSION}/.gitlab-ci.yml" \
 	 --exclude "production-$${SHOPWARE_VERSION}/Dockerfile" \
 	 --exclude "production-$${SHOPWARE_VERSION}/docker-compose.yml" \
+	 --exclude "production-$${SHOPWARE_VERSION}/easy-coding-standard.php" \
 	 --exclude "production-$${SHOPWARE_VERSION}/README.md" \
 	 --exclude "production-$${SHOPWARE_VERSION}/bin/.gitignore" \
 	 --exclude "production-$${SHOPWARE_VERSION}/config/jwt" \
