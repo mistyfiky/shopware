@@ -4,7 +4,7 @@ export BASH_ENV = $(PWD)/bin/activate
 .ONESHELL :
 .DEFAULT_GOAL := help
 
-export SHOPWARE_VERSION = 6.4.12.0
+export SHOPWARE_VERSION = 6.4.11.1
 
 help : export BASH_ENV =
 help :

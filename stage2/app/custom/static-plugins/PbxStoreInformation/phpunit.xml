@@ -2,7 +2,8 @@
 
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.3/phpunit.xsd"
-         bootstrap="../../../vendor/shopware/core/TestBootstrap.php">
+         bootstrap="../../../src/TestBootstrap.php"
+         cacheResultFile="var/cache/phpunit/.phpunit.result.cache">
 
     <php>
         <ini name="error_reporting" value="-1"/>
@@ -10,7 +11,11 @@
         <env name="APP_ENV" value="test"/>
         <env name="APP_DEBUG" value="1"/>
         <env name="APP_SECRET" value="s$cretf0rt3st"/>
+        <env name="SHOPWARE_HTTP_CACHE_ENABLED" value="0" />
         <env name="SHELL_VERBOSITY" value="-1"/>
+        <env name="SYMFONY_DEPRECATIONS_HELPER" value="disabled" />
+        <server name="MAILER_URL" value="null://localhost"/>
+        <server name="HTTPS" value="off"/>
     </php>
 
     <testsuites>

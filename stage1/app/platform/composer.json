@@ -73,7 +73,7 @@
         "erusev/parsedown-extra": "0.8.1",
         "ezyang/htmlpurifier": "4.13.0",
         "google/cloud-storage": "~1.25.1",
-        "guzzlehttp/guzzle": "~7.4.4",
+        "guzzlehttp/guzzle": "~7.2",
         "guzzlehttp/psr7": "^1.8.0",
         "jdorn/sql-formatter": "1.2.17",
         "lcobucci/jwt": "~4.1.5",
@@ -145,7 +145,7 @@
         "twig/intl-extra": "~3.3.5",
         "twig/string-extra": "~3.3.5",
         "twig/twig": "~3.3.8",
-        "zircote/swagger-php": "~3.3.6",
+        "zircote/swagger-php": "3.3.2",
         "squirrelphp/twig-php-syntax": "1.7.0"
     },
     "require-dev": {
@@ -163,14 +163,13 @@
         "opis/json-schema": "~1.0.19",
         "phpdocumentor/reflection-docblock": "^5.3.0",
         "phpstan/extension-installer": "^1.1.0",
-        "phpstan/phpstan": "1.7.10",
-        "phpstan/phpstan-doctrine": "1.3.4",
-        "phpstan/phpstan-phpunit": "1.1.1",
-        "phpstan/phpstan-symfony": "1.1.8",
+        "phpstan/phpstan": "1.3.0",
+        "phpstan/phpstan-doctrine": "1.0.2",
+        "phpstan/phpstan-phpunit": "1.0.0",
+        "phpstan/phpstan-symfony": "1.0.4",
         "phpunit/php-code-coverage": "~9.2.14",
         "phpunit/phpunit": "~9.5.17",
         "smalot/pdfparser": "~0.14.0",
-        "staabm/phpstan-dba": "0.2.29",
         "symfony/browser-kit": "~5.4.0",
         "symfony/css-selector": "~5.4.0",
         "symfony/dom-crawler": "~5.4.0",
@@ -199,7 +198,7 @@
             "ln -sf $PWD/bin/pre-push .git/hooks/pre-push"
         ],
         "init:db": [
-            "@php bin/console system:install --drop-database --basic-setup --force --no-assign-theme"
+            "@php bin/console system:install --drop-database --basic-setup --force"
         ],
         "init:js": [
             "@npm:admin clean-install",
@@ -221,8 +220,7 @@
         "npm:admin": "@npm:admin:bin npm",
         "npm:storefront:bin": "export PROJECT_ROOT=\"$PWD\"; cd src/Storefront/Resources/app/storefront; export PATH=\"$PWD/node_modules/.bin/:$PATH\"; \"$PROJECT_ROOT\"/bin/exec-with-env ",
         "npm:storefront": "@npm:storefront:bin npm",
-        "npm:component-library:bin": "export PROJECT_ROOT=\"$PWD\"; cd src/Administration/Resources/app/administration/build/nuxt-component-library; export PATH=\"$PWD/node_modules/.bin/:$PATH\"; \"$PROJECT_ROOT\"/bin/exec-with-env ",
-        "npm:component-library": "@npm:component-library:bin npm",
+
         "npm:e2e:bin": "export CYPRESS_shopwareRoot=\"$PWD\"; cd tests/e2e; export PATH=\"$PWD/node_modules/.bin/:$PATH\"; \"$CYPRESS_shopwareRoot\"/bin/exec-with-env ",
         "npm:e2e": "@npm:e2e:bin npm",
         "npm:e2e:admin:bin": "@npm:e2e:bin ",
@@ -231,27 +229,10 @@
         "npm:e2e:recovery": "@npm:e2e:recovery:bin npm",
         "npm:e2e:storefront:bin": "@npm:e2e:bin ",
         "npm:e2e:storefront": "@npm:e2e:storefront:bin npm",
-        "e2e:sdk-plugin:fixture-to-plugin": [
-            "rm -rf $PWD/custom/plugins/TestPlugin;",
-            "cp -a $PWD/tests/e2e/cypress/fixtures/TestPlugin/. $PWD/custom/plugins/TestPlugin/"
-        ],
-        "e2e:sdk-plugin:plugin-to-fixture": [
-            "rm -rf $PWD/tests/e2e/cypress/fixtures/TestPlugin;",
-            "cp -a $PWD/custom/plugins/TestPlugin/. $PWD/tests/e2e/cypress/fixtures/TestPlugin/"
-        ],
-        "e2e:sdk-plugin:prepare-plugin": [
-            "cd $PWD/custom/plugins/TestPlugin/src/Resources/app/administration/; npm install;",
-            "bin/console plugin:refresh;",
-            "bin/console plugin:install --activate TestPlugin;",
-            "@build:js:admin"
-        ],
         "build:js:admin": [
             "@php bin/console bundle:dump",
             "@npm:admin run build",
             "@php bin/console assets:install"
-        ],
-        "build:js:component-library": [
-            "@npm:component-library run generate"
         ],
         "build:js:storefront": [
             "@php bin/console feature:dump",
@@ -301,9 +282,11 @@
             "@php src/Core/DevOps/StaticAnalyze/PHPStan/phpstan-bootstrap.php",
             "phpstan analyze --memory-limit=2G"
         ],
+        "psalm": "psalm --config=psalm.xml --threads=4",
         "bc-check": "roave-backward-compatibility-check --from=$(git tag -l --sort -version:refname | head -n 1)",
         "static-analyze": [
-            "@phpstan src/"
+            "@phpstan src/",
+            "@psalm src/"
         ],
         "phpunit": [
             "phpunit"
@@ -322,12 +305,9 @@
             "@setup",
             "@e2e:prepare"
         ],
-
         "e2e:prepare": [
             "@putenv APP_ENV=e2e",
             "@putenv CYPRESS_localUsage=1",
-            "@e2e:sdk-plugin:fixture-to-plugin",
-            "@e2e:sdk-plugin:prepare-plugin",
             "@php bin/console e2e:dump-db"
         ],
 
@@ -384,12 +364,6 @@
         "admin:unit:watch": [
             "@php bin/console framework:schema -s 'entity-schema' src/Administration/Resources/app/administration/test/_mocks_/entity-schema.json",
             "@npm:admin run unit-watch"
-        ],
-        "storefront:unit": [
-            "@npm:storefront run unit"
-        ],
-        "storefront:unit:watch": [
-            "@npm:storefront run unit-watch"
         ]
     },
     "autoload": {
@@ -415,7 +389,7 @@
              "Shopware\\Elasticsearch\\Test\\": "src/Elasticsearch/Test",
              "Shopware\\Recovery\\Test\\": "src/Recovery/Test",
              "Shopware\\Docs\\Test\\": "src/Docs/Test",
-             "Shopware\\Core\\Content\\Test\\": "src/Core/Content/Test/",
+            "Shopware\\Core\\Content\\Test\\": "src/Core/Content/Test/",
              "Shopware\\Core\\Framework\\Test\\": "src/Core/Framework/Test/",
              "Shopware\\Core\\Migration\\Test\\": "src/Core/Migration/Test/",
              "Shopware\\Core\\Maintenance\\Test\\": "src/Core/Maintenance/Test/",
@@ -426,5 +400,5 @@
              "Shopware\\Core\\Test\\": "src/Core/Test/"
         }
     },
-    "version": "6.4.12.0"
+    "version": "6.4.11.1"
 }

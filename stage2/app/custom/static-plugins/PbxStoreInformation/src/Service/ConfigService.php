@@ -41,6 +41,11 @@ class ConfigService implements ConfigServiceInterface
         return $config;
     }
 
+    /**
+     * @param string[] $config
+     *
+     * @return string[]
+     */
     private function processConfigAddress(array &$config, Context $context): array
     {
         $fields = [

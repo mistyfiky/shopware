@@ -8,5 +8,8 @@ use Shopware\Core\System\SalesChannel\SalesChannelContext;
 
 interface ConfigServiceInterface
 {
+    /**
+     * @return string[]
+     */
     public function parseStoreInformationConfig(SalesChannelContext $salesChannelContext): array;
 }

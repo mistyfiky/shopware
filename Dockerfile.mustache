@@ -95,12 +95,13 @@ COPY --chown=${USER_ID}:${GROUP_ID} stage1/app/custom /app/custom
 ARG PHP_VERSION
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
     composer config platform.php "$PHP_VERSION" && \
-    composer require --no-install --no-scripts "php:${PHP_VERSION}" && \
-    composer remove --no-install --no-scripts shopware/recovery
+    jq 'del(.scripts)' composer.json >composer.json.tmp && mv composer.json.tmp composer.json && \
+    composer require --no-install "php:${PHP_VERSION}" && \
+    composer remove --no-install shopware/recovery
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
     composer -d vendor-bin/cs-fixer config platform.php "$PHP_VERSION" && \
     composer -d vendor-bin/psalm config platform.php "$PHP_VERSION" && \
-    composer require --dev --no-install --no-scripts \
+    composer require --dev --no-install \
       $(jq -r '."require-dev" | to_entries | .[] | "\(.key):\(.value)"' platform/composer.json) && \
     composer config "allow-plugins.bamarni/composer-bin-plugin" true && \
     composer config "allow-plugins.phpstan/extension-installer" true
@@ -140,7 +141,7 @@ FROM static-plugins-base AS static-plugins-prod
 ARG USER_ID
 ARG GROUP_ID
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer require --no-scripts --update-no-dev \
+    composer require --update-no-dev \
       $(jq -r '"\(.name):\(.version)"' custom/static-plugins/{{name}}/composer.json)
 {{/static-plugins}}
 
@@ -150,7 +151,7 @@ FROM static-plugins-base AS static-plugins-dev
 ARG USER_ID
 ARG GROUP_ID
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer require --no-scripts \
+    composer require \
       $(jq -r '"\(.name):\(.version)"' custom/static-plugins/{{name}}/composer.json)
 {{/static-plugins}}
 
@@ -172,7 +173,7 @@ FROM store-plugins-base AS store-plugins-prod
 ARG USER_ID
 ARG GROUP_ID
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer require --no-scripts --update-no-dev {{package}}:{{version}}
+    composer require --update-no-dev {{package}}:{{version}}
 {{/store-plugins}}
 
 
@@ -181,7 +182,7 @@ FROM store-plugins-base AS store-plugins-dev
 ARG USER_ID
 ARG GROUP_ID
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer require --no-scripts {{package}}:{{version}}
+    composer require {{package}}:{{version}}
 {{/store-plugins}}
 
 
@@ -195,14 +196,14 @@ FROM vendor-base AS vendor-prod
 ARG USER_ID
 ARG GROUP_ID
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer install --no-interaction --optimize-autoloader --no-scripts --no-dev
+    composer install --no-interaction --optimize-autoloader --no-dev
 
 
 FROM vendor-base AS vendor-dev
 ARG USER_ID
 ARG GROUP_ID
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer install --no-interaction --optimize-autoloader --no-scripts && \
+    composer install --no-interaction --optimize-autoloader && \
     composer bin all install
 {{#static-plugins}}
 
@@ -284,6 +285,7 @@ COPY --chown=${USER_ID}:${GROUP_ID} \
 COPY --from=node_modules-{{name}} \
      /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules \
      /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
+RUN mkdir -p custom/static-plugins/{{name}}/src/Resources/public
 {{/static-plugins}}
 COPY --from=bundle-dump /app/var/plugins.json /app/var/plugins.json
 {{#store-plugins}}
