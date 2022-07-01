@@ -63,7 +63,7 @@ COPY --chown=${USER_ID}:${GROUP_ID} stage0/app /app
 
 FROM scratch AS stage0
 COPY --from=stage0-root / /
-ENV PHP_INI_DIR=/usr/local/etc/php
+ENV PHP_INI_DIR="/usr/local/etc/php"
 ENTRYPOINT ["docker-php-entrypoint"]
 WORKDIR /app
 STOPSIGNAL SIGQUIT
@@ -73,8 +73,9 @@ ARG USER_ID
 ARG GROUP_ID
 USER ${USER_ID}:${GROUP_ID}
 ARG APP_ENV
-ENV APP_ENV=${APP_ENV} \
-    APP_DEBUG="0"
+ENV APP_ENV="${APP_ENV}" \
+    APP_DEBUG="0" \
+    PROJECT_ROOT="/app"
 
 
 # STAGE 1
@@ -105,6 +106,7 @@ RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID}
       $(jq -r '."require-dev" | to_entries | .[] | "\(.key):\(.value)"' platform/composer.json) && \
     composer config "allow-plugins.bamarni/composer-bin-plugin" true && \
     composer config "allow-plugins.phpstan/extension-installer" true
+
 
 FROM scratch AS stage1-root
 ARG USER_ID
@@ -208,6 +210,10 @@ RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID}
 {{#static-plugins}}
 
 
+FROM vendor-base AS var-{{name}}
+RUN mkdir -p custom/static-plugins/{{name}}/var
+
+
 FROM vendor-base AS vendor-{{name}}
 ARG USER_ID
 ARG GROUP_ID
@@ -231,7 +237,7 @@ RUN bin/ci bundle:dump
 
 FROM vendor AS node_modules-base
 COPY --from=node-root / /
-ENV PUPPETEER_SKIP_DOWNLOAD=1
+ENV PUPPETEER_SKIP_DOWNLOAD="1"
 
 
 FROM node_modules-base AS node_modules-administration
@@ -241,7 +247,7 @@ RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
 
 
 FROM node_modules-base AS node_modules-{{name}}
-RUN mkdir -p custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
+RUN mkdir -p custom/static-plugins/{{name}}/src/Resources/app/administration
 ARG USER_ID
 ARG GROUP_ID
 COPY --chown=${USER_ID}:${GROUP_ID} \
@@ -254,7 +260,7 @@ RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
     elif [ -f custom/static-plugins/{{name}}/src/Resources/app/administration/package.json ]; then \
       npm --prefix custom/static-plugins/{{name}}/src/Resources/app/administration install; \
     else \
-      mkdir -p custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules; \
+      mkdir custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules; \
     fi
 {{/static-plugins}}
 {{#store-plugins}}
@@ -291,8 +297,7 @@ COPY --from=bundle-dump /app/var/plugins.json /app/var/plugins.json
 {{#store-plugins}}
 RUN jq 'del(.{{name}})' var/plugins.json >var/plugins.json.tmp && mv var/plugins.json.tmp var/plugins.json
 {{/store-plugins}}
-ENV PROJECT_ROOT=/app \
-    SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS=1
+ENV SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS="1"
 RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
     npm --prefix vendor/shopware/administration/Resources/app/administration run build
 
@@ -370,6 +375,9 @@ COPY --from=node_modules-administration --chown=${USER_ID}:${GROUP_ID} \
      /app/vendor/shopware/administration/Resources/app/administration/node_modules \
      /app/vendor/shopware/administration/Resources/app/administration/node_modules
 {{#static-plugins}}
+COPY --from=var-{{name}} --chown=${USER_ID}:${GROUP_ID} \
+     /app/custom/static-plugins/{{name}}/var \
+     /app/custom/static-plugins/{{name}}/var
 COPY --from=vendor-{{name}} --chown=${USER_ID}:${GROUP_ID} \
      /app/custom/static-plugins/{{name}}/vendor \
      /app/custom/static-plugins/{{name}}/vendor

@@ -1,19 +1,19 @@
 .DEFAULT_GOAL := checks
 
 PLUGIN_ROOT=$(shell cd -P -- '$(shell dirname -- "$0")' && pwd -P)
-PROJECT_ROOT=$(PLUGIN_ROOT)/../../..
+export PROJECT_ROOT?=$(PLUGIN_ROOT)/../../..
 ADMINISTRATION_ROOT=$(PROJECT_ROOT)/vendor/shopware/administration
 
 clean :
-	@rm -fr var
+	@rm -fr var/*
 .PHONY : clean
 
 ecs-lint ecs :
-	@php $(PROJECT_ROOT)/vendor/bin/ecs check
+	@php $(PROJECT_ROOT)/vendor/bin/ecs check --config ecs.php
 .PHONY : ecs-fix
 
 ecs-fix :
-	@php $(PROJECT_ROOT)/vendor/bin/ecs check --fix
+	@php $(PROJECT_ROOT)/vendor/bin/ecs check --config ecs.php --fix
 .PHONY : ecs-fix
 
 $(PROJECT_ROOT)/var/cache/phpstan_dev/Shopware_Core_DevOps_StaticAnalyze_StaticAnalyzeKernelPhpstan_devDebugContainer.xml :
@@ -23,8 +23,18 @@ phpstan : $(PROJECT_ROOT)/var/cache/phpstan_dev/Shopware_Core_DevOps_StaticAnaly
 	@php $(PROJECT_ROOT)/vendor/bin/phpstan analyze --configuration $(PLUGIN_ROOT)/phpstan.neon
 .PHONY : phpstan
 
+$(PROJECT_ROOT)/var/test/jwt/private.pem $(PROJECT_ROOT)/var/test/jwt/public.pem : export APP_ENV=test
+$(PROJECT_ROOT)/var/test/jwt/private.pem $(PROJECT_ROOT)/var/test/jwt/public.pem :
+	@php $(PROJECT_ROOT)/bin/console system:generate-jwt-secret --private-key-path $(PROJECT_ROOT)/var/test/jwt/private.pem --public-key-path $(PROJECT_ROOT)/var/test/jwt/public.pem
+
+test-init : export APP_ENV=test
+test-init : export FORCE_INSTALL=1
+test-init : $(PROJECT_ROOT)/var/test/jwt/private.pem $(PROJECT_ROOT)/var/test/jwt/public.pem
+	@php $(PLUGIN_ROOT)/tests/TestBootstrap.php
+.PHONY : test-init
+
 phpunit : export APP_ENV=test
-phpunit :
+phpunit : $(PROJECT_ROOT)/var/test/jwt/private.pem $(PROJECT_ROOT)/var/test/jwt/public.pem
 	@cd $(PROJECT_ROOT); php vendor/bin/phpunit --configuration=$(PLUGIN_ROOT)
 .PHONY : phpunit
 

@@ -114,10 +114,10 @@ Dockerfile compose.yml :
 dump.sql :
 	touch $@
 
-stageX/app/public/dev :
+stageX/app/public/dev stageX/app/var/test/jwt:
 	mkdir -p $@
 
-compose-runtime : Dockerfile compose.yml dump.sql stageX/app/public/dev
+compose-runtime : Dockerfile compose.yml dump.sql stageX/app/public/dev stageX/app/var/test/jwt
 .PHONY : compose-runtime
 
 dev-check :
@@ -136,6 +136,7 @@ purge-shadow :
 	 stage1/app/bin/update.sh \
 	 stage1/app/bin/wait-for-it.sh \
 	 stage1/app/config/services/custom.xml \
+	 stage2/app/custom/static-plugins/*/var \
 	 stage2/app/custom/static-plugins/*/vendor \
 	 stage2/app/custom/static-plugins/*/src/Resources/public \
 	 stage2/app/custom/static-plugins/*/src/Resources/app/administration/node_modules \
