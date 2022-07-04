@@ -1,0 +1,44 @@
+{
+    "name": "myy/example",
+    "description": "Mistyfiky's Shopware example plugin",
+    "version": "dev-master",
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "mistyfiky"
+        }
+    ],
+    "require": {
+        "shopware/core": "*",
+        "shopware/administration": "*"
+    },
+    "type": "shopware-platform-plugin",
+    "autoload": {
+        "psr-4": {
+            "Myy\\Example\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Myy\\Example\\Test\\": "tests/"
+        }
+    },
+    "extra": {
+        "shopware-plugin-class": "Myy\\Example\\MyyExample",
+        "label": {
+            "en-GB": "Example plugin"
+        },
+        "description": {
+            "en-GB": "Mistyfiky's shopware example plugin"
+        },
+        "manufacturerLink": {
+            "en-GB": "https://mistyfi.ky"
+        },
+        "supportLink": {
+            "en-GB": "https://mistyfi.ky"
+        }
+    },
+    "config": {
+        "lock": false
+    }
+}

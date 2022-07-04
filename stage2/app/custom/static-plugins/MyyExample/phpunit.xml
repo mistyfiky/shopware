@@ -19,7 +19,7 @@
     </php>
 
     <testsuites>
-        <testsuite name="PbxStoreInformation Testsuite">
+        <testsuite name="Plugin testsuite">
             <directory>tests</directory>
         </testsuite>
     </testsuites>

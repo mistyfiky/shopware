@@ -247,7 +247,6 @@ RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
 
 
 FROM node_modules-base AS node_modules-{{name}}
-RUN mkdir -p custom/static-plugins/{{name}}/src/Resources/app/administration
 ARG USER_ID
 ARG GROUP_ID
 COPY --chown=${USER_ID}:${GROUP_ID} \
@@ -260,7 +259,7 @@ RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
     elif [ -f custom/static-plugins/{{name}}/src/Resources/app/administration/package.json ]; then \
       npm --prefix custom/static-plugins/{{name}}/src/Resources/app/administration install; \
     else \
-      mkdir custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules; \
+      mkdir -p custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules; \
     fi
 {{/static-plugins}}
 {{#store-plugins}}
@@ -304,9 +303,6 @@ RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
 
 # FIXME separate composer file for prod and dev
 FROM node_modules-base as node_modules-prod
-{{#static-plugins}}
-RUN mkdir -p custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
-{{/static-plugins}}
 
 
 FROM stage1-root AS stage2-root
@@ -320,9 +316,6 @@ COPY --chown=${USER_ID}:${GROUP_ID} stage2/app/custom/static-plugins/{{name}} /a
 COPY --from=assets \
      /app/custom/static-plugins/{{name}}/src/Resources/public \
      /app/custom/static-plugins/{{name}}/src/Resources/public
-COPY --from=node_modules-prod \
-     /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules \
-     /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
 {{/static-plugins}}
 
 

@@ -1,6 +1,6 @@
 ---
 static-plugins:
-- name: PbxStoreInformation
+- name: MyyExample
 store-plugins:
 - name: FroshTools
   package: store.shopware.com/froshtools

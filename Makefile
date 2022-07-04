@@ -36,7 +36,9 @@ help :
 	 && :
 .PHONY : help
 
+# FIXME find a better way to handle required dirs
 build : compose-runtime
+	mkdir -p stage2/app/custom/static-plugins/MyyExample/src/Resources/app/administration
 	docker compose --profile platform --profile tasks --profile tools build $$DOCKER_BUILD_OPTS
 .PHONY : build
 
