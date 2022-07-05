@@ -69,6 +69,7 @@ x-sw-defaults: &sw-defaults
     - "./stage3/app/config/packages:/app/config/packages"
     - "./stage3/app/config/services.xml:/app/config/services.xml"
     - "./stage3/app/install.lock:/app/install.lock"
+    - "./stage3/app/custom/static-plugins/.common:/app/custom/static-plugins/.common"
     - "./stageX/app/public/dev:/app/public/dev"
     - "./stageX/app/var/test/jwt:/app/var/test/jwt"
 {{#static-plugins}}
