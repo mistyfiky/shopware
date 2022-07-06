@@ -85,40 +85,31 @@ FROM stage0 AS dependencies
 ARG USER_ID
 ARG GROUP_ID
 COPY --chown=${USER_ID}:${GROUP_ID} stage1/app/composer.json stage1/app/composer.lock /app/
-COPY --chown=${USER_ID}:${GROUP_ID} stage1/app/platform/composer.json /app/platform/composer.json
-COPY --chown=${USER_ID}:${GROUP_ID} \
-     stage1/app/vendor-bin/cs-fixer/composer.json \
-     /app/vendor-bin/cs-fixer/composer.json
-COPY --chown=${USER_ID}:${GROUP_ID} \
-     stage1/app/vendor-bin/psalm/composer.json \
-     /app/vendor-bin/psalm/composer.json
+COPY --chown=${USER_ID}:${GROUP_ID} stage1/app/platform /app/platform
 COPY --chown=${USER_ID}:${GROUP_ID} stage1/app/custom /app/custom
+COPY --chown=${USER_ID}:${GROUP_ID} stage1/app/vendor /app/vendor
+COPY --chown=${USER_ID}:${GROUP_ID} stage1/app/vendor-bin /app/vendor-bin
 ARG PHP_VERSION
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer config platform.php "$PHP_VERSION" && \
+    composer -n config platform.php "$PHP_VERSION" && \
     jq 'del(.scripts)' composer.json >composer.json.tmp && mv composer.json.tmp composer.json && \
-    composer require --no-install "php:${PHP_VERSION}" && \
-    composer remove --no-install shopware/recovery
+    composer -n require --no-install "php:${PHP_VERSION}" && \
+    composer -n remove --no-install shopware/recovery
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer -d vendor-bin/cs-fixer config platform.php "$PHP_VERSION" && \
-    composer -d vendor-bin/psalm config platform.php "$PHP_VERSION" && \
-    composer require --dev --no-install \
-      $(jq -r '."require-dev" | to_entries | .[] | "\(.key):\(.value)"' platform/composer.json) && \
-    composer config "allow-plugins.bamarni/composer-bin-plugin" true && \
-    composer config "allow-plugins.phpstan/extension-installer" true
-
+    for n in vendor-bin/*; do composer -n -d "$n" config platform.php "$PHP_VERSION"; done && \
+    composer -n require --dev --no-install $(jq -r '."require-dev" | to_entries | .[] | "\(.key):\(.value)"' platform/composer.json) && \
+    composer -n config "allow-plugins.bamarni/composer-bin-plugin" true && \
+    composer -n config "allow-plugins.phpstan/extension-installer" true && \
+    composer -n install --optimize-autoloader $([ 'prod' = "$APP_ENV" ] && echo '--no-dev') && \
+    [ 'prod' = "$APP_ENV" ] || composer -n bin all install
 
 FROM scratch AS stage1-root
 ARG USER_ID
 ARG GROUP_ID
 COPY --chown=${USER_ID}:${GROUP_ID} stage1/app /app
 COPY --from=dependencies /app/composer.json /app/composer.lock /app/
-COPY --from=dependencies \
-     /app/vendor-bin/cs-fixer/composer.json \
-     /app/vendor-bin/cs-fixer/composer.json
-COPY --from=dependencies \
-     /app/vendor-bin/psalm/composer.json \
-     /app/vendor-bin/psalm/composer.json
+COPY --from=dependencies /app/vendor /app/vendor
+COPY --from=dependencies /app/vendor-bin /app/vendor-bin
 
 
 FROM stage0 AS stage1
@@ -128,144 +119,71 @@ COPY --from=stage1-root / /
 # STAGE 2
 
 
-FROM stage1 AS static-plugins-base
+FROM stage1 AS node_modules-administration
+COPY --from=node-root / /
 ARG USER_ID
 ARG GROUP_ID
-{{#static-plugins}}
-COPY --chown=${USER_ID}:${GROUP_ID} \
-     stage2/app/custom/static-plugins/{{name}}/composer.json \
-     /app/custom/static-plugins/{{name}}/composer.json
-{{/static-plugins}}
+ENV PUPPETEER_SKIP_DOWNLOAD="1"
+RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
+    npm --prefix vendor/shopware/administration/Resources/app/administration clean-install
 
-
-FROM static-plugins-base AS static-plugins-prod
 {{#static-plugins}}
+
+FROM node_modules-administration AS assets-{{slug}}
 ARG USER_ID
 ARG GROUP_ID
+COPY --chown=${USER_ID}:${GROUP_ID} stage2/app/custom/static-plugins/{{name}}/composer.json /app/custom/static-plugins/{{name}}/composer.json
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer require --update-no-dev \
-      $(jq -r '"\(.name):\(.version)"' custom/static-plugins/{{name}}/composer.json)
+    composer -n require $([ 'prod' = "$APP_ENV" ] && echo '--update-no-dev') $(jq -r '"\(.name):\(.version)"' custom/static-plugins/{{name}}/composer.json)
+COPY --chown=${USER_ID}:${GROUP_ID} stage2/app/custom/static-plugins/{{name}} /app/custom/static-plugins/{{name}}
+RUN bin/ci bundle:dump
+ENV SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS="1"
+RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
+    if [ -f custom/static-plugins/{{name}}/src/Resources/app/administration/package-lock.json ]; then \
+      npm --prefix custom/static-plugins/{{name}}/src/Resources/app/administration clean-install; \
+    elif [ -f custom/static-plugins/{{name}}/src/Resources/app/administration/package.json ]; then \
+      npm --prefix custom/static-plugins/{{name}}/src/Resources/app/administration install; \
+    fi
+RUN mkdir -p custom/static-plugins/{{name}}/src/Resources/public/administration
+# FIXME run only if extends administration
+RUN npm --prefix vendor/shopware/administration/Resources/app/administration run build
+
+
+FROM assets-{{slug}} AS node_modules-{{slug}}
+RUN mkdir -p custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
+
 {{/static-plugins}}
 
-
-FROM static-plugins-base AS static-plugins-dev
-{{#static-plugins}}
-ARG USER_ID
-ARG GROUP_ID
-RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer require \
-      $(jq -r '"\(.name):\(.version)"' custom/static-plugins/{{name}}/composer.json)
-{{/static-plugins}}
-
-
-FROM static-plugins-${APP_ENV} AS static-plugins
-
-
-FROM static-plugins AS store-plugins-base
+FROM stage1 as plugins
 ARG USER_ID
 ARG GROUP_ID
 ARG SHOPWARE_COMPOSER_TOKEN
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
     composer config repositories.shopware-packages '{"type": "composer", "url": "https://packages.shopware.com"}' && \
     composer config bearer.packages.shopware.com "${SHOPWARE_COMPOSER_TOKEN}"
-
-
-FROM store-plugins-base AS store-plugins-prod
-{{#store-plugins}}
-ARG USER_ID
-ARG GROUP_ID
-RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer require --update-no-dev {{package}}:{{version}}
-{{/store-plugins}}
-
-
-FROM store-plugins-base AS store-plugins-dev
-{{#store-plugins}}
-ARG USER_ID
-ARG GROUP_ID
-RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer require {{package}}:{{version}}
-{{/store-plugins}}
-
-
-FROM store-plugins-${APP_ENV} AS store-plugins
-
-
-FROM store-plugins AS vendor-base
-
-
-FROM vendor-base AS vendor-prod
-ARG USER_ID
-ARG GROUP_ID
-RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer install --no-interaction --optimize-autoloader --no-dev
-
-
-FROM vendor-base AS vendor-dev
-ARG USER_ID
-ARG GROUP_ID
-RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer install --no-interaction --optimize-autoloader && \
-    composer bin all install
-{{#static-plugins}}
-
-
-FROM vendor-base AS var-{{name}}
-RUN mkdir -p custom/static-plugins/{{name}}/var
-
-
-FROM vendor-base AS vendor-{{name}}
-ARG USER_ID
-ARG GROUP_ID
-RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
-    composer -d custom/static-plugins/{{name}} dump-autoload --dev && \
-    touch custom/static-plugins/{{name}}/vendor/composer/InstalledVersions.php
-{{/static-plugins}}
-
-
-FROM vendor-${APP_ENV} AS vendor
-
-
-FROM vendor AS bundle-dump
-ARG USER_ID
-ARG GROUP_ID
 {{#static-plugins}}
 COPY --chown=${USER_ID}:${GROUP_ID} stage2/app/custom/static-plugins/{{name}} /app/custom/static-plugins/{{name}}
+COPY --from=assets-{{slug}} \
+     /app/custom/static-plugins/{{name}}/src/Resources/public/administration \
+     /app/custom/static-plugins/{{name}}/src/Resources/public/administration
+RUN mkdir -p custom/static-plugins/{{name}}/var
 {{/static-plugins}}
-RUN bin/ci bundle:dump
-
-
-FROM vendor AS node_modules-base
-COPY --from=node-root / /
-ENV PUPPETEER_SKIP_DOWNLOAD="1"
-
-
-FROM node_modules-base AS node_modules-administration
-RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
-    npm --prefix vendor/shopware/administration/Resources/app/administration clean-install
+RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
+    composer -n require $([ 'prod' = "$APP_ENV" ] && echo '--update-no-dev') \
 {{#static-plugins}}
-
-
-FROM node_modules-base AS node_modules-{{name}}
-ARG USER_ID
-ARG GROUP_ID
-COPY --chown=${USER_ID}:${GROUP_ID} \
-     stage2/app/custom/static-plugins/{{name}}/src/Resources/app/administration/package.json* \
-     stage2/app/custom/static-plugins/{{name}}/src/Resources/app/administration/package-lock.json* \
-     /app/custom/static-plugins/{{name}}/src/Resources/app/administration/
-RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
-    if [ -f custom/static-plugins/{{name}}/src/Resources/app/administration/package-lock.json ]; then \
-      npm --prefix custom/static-plugins/{{name}}/src/Resources/app/administration clean-install; \
-    elif [ -f custom/static-plugins/{{name}}/src/Resources/app/administration/package.json ]; then \
-      npm --prefix custom/static-plugins/{{name}}/src/Resources/app/administration install; \
-    else \
-      mkdir -p custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules; \
-    fi
+     $(jq -r '"\(.name):\(.version)"' custom/static-plugins/{{name}}/composer.json) \
 {{/static-plugins}}
 {{#store-plugins}}
+     {{package}}:{{version}} \
+{{/store-plugins}}
+    && bin/ci bundle:dump
 
+{{#store-plugins}}
 
-FROM node_modules-base AS node_modules-{{name}}
+FROM plugins AS node_modules-{{slug}}
+COPY --from=node-root / /
+ARG USER_ID
+ARG GROUP_ID
 RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
     if [ -f vendor/{{package}}/src/Resources/app/administration/package-lock.json ]; then \
       npm --prefix vendor/{{package}}/src/Resources/app/administration clean-install; \
@@ -274,52 +192,20 @@ RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
     else \
       mkdir -p vendor/{{package}}/src/Resources/app/administration/node_modules; \
     fi
+
 {{/store-plugins}}
-
-
-FROM node_modules-base AS assets
-COPY --from=node_modules-administration \
-     /app/vendor/shopware/administration/Resources/app/administration/node_modules \
-     /app/vendor/shopware/administration/Resources/app/administration/node_modules
-ARG USER_ID
-ARG GROUP_ID
-{{#static-plugins}}
-COPY --chown=${USER_ID}:${GROUP_ID} \
-     stage2/app/custom/static-plugins/{{name}}/src/Resources/app/administration \
-     /app/custom/static-plugins/{{name}}/src/Resources/app/administration
-COPY --from=node_modules-{{name}} \
-     /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules \
-     /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
-RUN mkdir -p custom/static-plugins/{{name}}/src/Resources/public
-{{/static-plugins}}
-COPY --from=bundle-dump /app/var/plugins.json /app/var/plugins.json
-{{#store-plugins}}
-RUN jq 'del(.{{name}})' var/plugins.json >var/plugins.json.tmp && mv var/plugins.json.tmp var/plugins.json
-{{/store-plugins}}
-ENV SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS="1"
-RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
-    npm --prefix vendor/shopware/administration/Resources/app/administration run build
-
-
-# FIXME separate composer file for prod and dev
-FROM node_modules-base as node_modules-prod
-
 
 FROM stage1-root AS stage2-root
-COPY --from=store-plugins /app/composer.json /app/composer.lock /app/
-COPY --from=vendor /app/vendor /app/vendor
-COPY --from=bundle-dump /app/var/plugins.json /app/var/plugins.json
-ARG USER_ID
-ARG GROUP_ID
+COPY --from=plugins /app/composer.json /app/composer.lock /app/
+COPY --from=plugins /app/vendor /app/vendor
+COPY --from=plugins /app/var/plugins.json /app/var/plugins.json
 {{#static-plugins}}
-COPY --chown=${USER_ID}:${GROUP_ID} stage2/app/custom/static-plugins/{{name}} /app/custom/static-plugins/{{name}}
-COPY --from=assets \
-     /app/custom/static-plugins/{{name}}/src/Resources/public \
-     /app/custom/static-plugins/{{name}}/src/Resources/public
+COPY --from=plugins /app/custom/static-plugins/{{name}} /app/custom/static-plugins/{{name}}
 {{/static-plugins}}
 
 
 FROM stage1 AS stage2
+# FIXME do not duplicate vendor
 COPY --from=stage2-root / /
 
 
@@ -360,29 +246,18 @@ FROM base AS prod
 
 FROM base AS dev
 COPY --from=node-root / /
-ARG USER_ID
-ARG GROUP_ID
-COPY --from=vendor --chown=${USER_ID}:${GROUP_ID} /app/vendor-bin/cs-fixer/vendor /app/vendor-bin/cs-fixer/vendor
-COPY --from=vendor --chown=${USER_ID}:${GROUP_ID} /app/vendor-bin/psalm/vendor /app/vendor-bin/psalm/vendor
-COPY --from=node_modules-administration --chown=${USER_ID}:${GROUP_ID} \
+COPY --from=node_modules-administration \
      /app/vendor/shopware/administration/Resources/app/administration/node_modules \
      /app/vendor/shopware/administration/Resources/app/administration/node_modules
 {{#static-plugins}}
-COPY --from=var-{{name}} --chown=${USER_ID}:${GROUP_ID} \
-     /app/custom/static-plugins/{{name}}/var \
-     /app/custom/static-plugins/{{name}}/var
-COPY --from=vendor-{{name}} --chown=${USER_ID}:${GROUP_ID} \
-     /app/custom/static-plugins/{{name}}/vendor \
-     /app/custom/static-plugins/{{name}}/vendor
-COPY --from=node_modules-{{name}} --chown=${USER_ID}:${GROUP_ID} \
+COPY --from=node_modules-{{slug}} \
      /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules \
      /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
 {{/static-plugins}}
 {{#store-plugins}}
-COPY --from=node_modules-{{name}} --chown=${USER_ID}:${GROUP_ID} \
+COPY --from=node_modules-{{slug}} \
      /app/vendor/{{package}}/src/Resources/app/administration/node_modules \
      /app/vendor/{{package}}/src/Resources/app/administration/node_modules
 {{/store-plugins}}
-
 
 FROM ${APP_ENV}

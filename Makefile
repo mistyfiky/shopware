@@ -38,7 +38,6 @@ help :
 
 # FIXME find a better way to handle required dirs
 build : compose-runtime
-	mkdir -p stage2/app/custom/static-plugins/MyyExample/src/Resources/app/administration
 	docker compose --profile platform --profile tasks --profile tools build $$DOCKER_BUILD_OPTS
 .PHONY : build
 
@@ -138,10 +137,9 @@ purge-shadow :
 	 stage1/app/bin/update.sh \
 	 stage1/app/bin/wait-for-it.sh \
 	 stage1/app/config/services/custom.xml \
-	 stage2/app/custom/static-plugins/*/var \
-	 stage2/app/custom/static-plugins/*/vendor \
-	 stage2/app/custom/static-plugins/*/src/Resources/public \
 	 stage2/app/custom/static-plugins/*/src/Resources/app/administration/node_modules \
+	 stage2/app/custom/static-plugins/*/src/Resources/public/administration \
+	 stage2/app/custom/static-plugins/*/var \
 	 && :
 .PHONY : purge-shadow
 
@@ -156,15 +154,9 @@ stageX/app : compose-runtime
 	docker compose cp -a noop:/app/composer.lock $@
 	mkdir -p $@/vendor
 	docker compose cp -a noop:/app/vendor $@
-	mkdir -p $@/vendor-bin/cs-fixer/vendor
-	docker compose cp -a noop:/app/vendor-bin/cs-fixer/composer.json $@/vendor-bin/cs-fixer
-	docker compose cp -a noop:/app/vendor-bin/cs-fixer/vendor $@/vendor-bin/cs-fixer
-	mkdir -p $@/vendor-bin/psalm/vendor
-	docker compose cp -a noop:/app/vendor-bin/psalm/composer.json $@/vendor-bin/psalm
-	docker compose cp -a noop:/app/vendor-bin/psalm/vendor $@/vendor-bin/psalm
+	mkdir -p $@/vendor-bin
+	docker compose cp -a noop:/app/vendor-bin $@
 	for name in $$(yq '.static-plugins[].name' <demo.yml); do
-	 mkdir -p "$@/custom/static-plugins/$${name}/vendor"
-	 docker compose cp -a "noop:/app/custom/static-plugins/$${name}/vendor" "$@/custom/static-plugins/$${name}/vendor"
 	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules"
 	 docker compose cp -a "noop:/app/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules" "$@/custom/static-plugins/$${name}/src/Resources/app/administration"
 	done
@@ -207,10 +199,10 @@ stage1/app :
 	mkdir app/platform
 	wget https://raw.githubusercontent.com/shopware/platform/v$${SHOPWARE_VERSION}/composer.json -O app/platform/composer.json
 	mkdir app/vendor-bin
-	mkdir app/vendor-bin/cs-fixer
-	wget https://raw.githubusercontent.com/shopware/platform/v$${SHOPWARE_VERSION}/vendor-bin/cs-fixer/composer.json -O app/vendor-bin/cs-fixer/composer.json
-	mkdir app/vendor-bin/psalm
-	wget https://raw.githubusercontent.com/shopware/platform/v$${SHOPWARE_VERSION}/vendor-bin/psalm/composer.json -O app/vendor-bin/psalm/composer.json
+	for n in cs-fixer psalm; do
+	  mkdir app/vendor-bin/$${n};
+	  wget https://raw.githubusercontent.com/shopware/platform/v$${SHOPWARE_VERSION}/vendor-bin/$${n}/composer.json -O app/vendor-bin/$${n}/composer.json;
+	done
 .PHONY : stage1/app
 
 define tableflip

@@ -16,7 +16,7 @@ ecs-fix :
 	@php ../../../vendor/shopware/core/DevOps/StaticAnalyze/PHPStan/phpstan-bootstrap.php
 
 phpstan : ../../../var/cache/phpstan_dev/Shopware_Core_DevOps_StaticAnalyze_StaticAnalyzeKernelPhpstan_devDebugContainer.xml
-	@php ../../../vendor/bin/phpstan analyze
+	@php ../../../vendor/bin/phpstan analyze --configuration phpstan.neon
 .PHONY : phpstan
 
 ../../../var/test/jwt/private.pem ../../../var/test/jwt/public.pem : export APP_ENV = test

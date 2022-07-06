@@ -1,8 +1,10 @@
 ---
 static-plugins:
-- name: MyyExample
+- slug: myyexample
+  name: MyyExample
 store-plugins:
-- name: FroshTools
+- slug: froshtools
+  name: FroshTools
   package: store.shopware.com/froshtools
   version: 0.1.7
 ---
