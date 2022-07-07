@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := checks
 
 clean :
-	@rm -fr var/*
+	@rm -fr var
 .PHONY : clean
 
 ecs-lint ecs :

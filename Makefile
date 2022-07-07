@@ -139,7 +139,6 @@ purge-shadow :
 	 stage1/app/config/services/custom.xml \
 	 stage2/app/custom/static-plugins/*/src/Resources/app/administration/node_modules \
 	 stage2/app/custom/static-plugins/*/src/Resources/public/administration \
-	 stage2/app/custom/static-plugins/*/var \
 	 && :
 .PHONY : purge-shadow
 

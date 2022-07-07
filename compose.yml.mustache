@@ -75,7 +75,6 @@ x-sw-defaults: &sw-defaults
 {{#static-plugins}}
     - "stageX_{{name}}_node_modules:/app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules"
     - "stageX_{{name}}_public_administration:/app/custom/static-plugins/{{name}}/src/Resources/public/administration"
-    - "stageX_{{name}}_var:/app/custom/static-plugins/{{name}}/var"
 {{/static-plugins}}
 
 services:
@@ -219,7 +218,6 @@ volumes:
   s3data:
   jwtdata:
 {{#static-plugins}}
-  stageX_{{name}}_var:
   stageX_{{name}}_public_administration:
   stageX_{{name}}_node_modules:
 {{/static-plugins}}

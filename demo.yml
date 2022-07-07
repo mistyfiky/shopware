@@ -2,7 +2,7 @@
 static-plugins:
 - slug: myyexample
   name: MyyExample
-store-plugins:
+composer-plugins:
 - slug: froshtools
   name: FroshTools
   package: store.shopware.com/froshtools
