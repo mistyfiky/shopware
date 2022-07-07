@@ -1,0 +1,51 @@
+{% block myy_example %}
+    <sw-page class="myy-example">
+
+        {% block myy_example_header %}
+            <template slot="smart-bar-header">
+                <h2>
+                    {{ $tc('sw-settings.index.title') }}
+                    <sw-icon name="small-arrow-medium-right" small></sw-icon>
+                    {{ $tc('myy-example.general.mainMenuItemGeneral') }}
+                </h2>
+            </template>
+        {% endblock %}
+
+        {% block myy_example_actions %}
+            <template slot="smart-bar-actions">
+                {% block myy_example_actions_save %}
+                    <sw-button-process v-model="isSaveSuccessful"
+                                       class="sw-settings-login-registration__save-action"
+                                       variant="primary"
+                                       :isLoading="isLoading"
+                                       :disabled="isLoading"
+                                       @click="onSave">
+                        {{ $tc('global.default.save') }}
+                    </sw-button-process>
+                {% endblock %}
+
+            </template>
+        {% endblock %}
+
+        {% block myy_example_content %}
+            <template slot="content">
+
+                {% block myy_example_content_card %}
+                    <sw-card-view>
+
+                        {% block myy_example_content_card_config %}
+                            <sw-system-config
+                                ref="systemConfig"
+                                salesChannelSwitchable
+                                domain="MyyExample.config">
+                            </sw-system-config>
+                        {% endblock %}
+
+                    </sw-card-view>
+                {% endblock %}
+
+            </template>
+        {% endblock %}
+
+    </sw-page>
+{% endblock %}

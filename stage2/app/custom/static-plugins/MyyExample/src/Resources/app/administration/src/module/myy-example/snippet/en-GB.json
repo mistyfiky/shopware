@@ -1,0 +1,8 @@
+{
+    "myy-example": {
+        "general": {
+            "mainMenuItemGeneral": "Example plugin",
+            "descriptionTextModule": "Mistyfiky's Shopware example plugin"
+        }
+    }
+}
