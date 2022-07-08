@@ -156,10 +156,8 @@ stageX/app : compose-runtime
 	mkdir -p $@/vendor-bin
 	docker compose cp -a noop:/app/vendor-bin $@
 	for name in $$(yq '.static-plugins[].name' <demo.yml); do
-	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules"
-	 docker compose cp -a "noop:/app/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules" "$@/custom/static-plugins/$${name}/src/Resources/app/administration"
-	 mkdir -p "$@/custom/static-plugins/$${name}/vendor"
-	 docker compose cp -a "noop:/app/custom/static-plugins/$${name}/vendor" "$@/custom/static-plugins/$${name}"
+	  mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules"
+	  docker compose cp -a "noop:/app/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules" "$@/custom/static-plugins/$${name}/src/Resources/app/administration"
 	done
 	docker compose rm -fs noop
 .PHONY : stageX/app

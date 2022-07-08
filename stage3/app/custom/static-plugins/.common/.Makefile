@@ -25,7 +25,7 @@ phpstan : ../../../var/cache/phpstan_dev/Shopware_Core_DevOps_StaticAnalyze_Stat
 
 test-init phpunit : export APP_ENV = test
 
-test-init : export FORCE_INSTALL = 1
+test-init : export FORCE_INSTALL_PLUGINS = 1
 test-init : ../../../var/test/jwt/private.pem ../../../var/test/jwt/public.pem
 	@php ../.common/TestBootstrap.php
 .PHONY : test-init
