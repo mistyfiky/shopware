@@ -5,6 +5,7 @@
 /Dockerfile
 /dump.sql
 /dump_*.sql
+/stage2/app/custom/static-plugins/*/var
 # shadow
 /stage1/app/config/jwt
 /stage1/app/config/packages
@@ -14,6 +15,4 @@
 /stage1/app/config/services/custom.xml
 /stage2/app/custom/static-plugins/*/src/Resources/app/administration/node_modules
 /stage2/app/custom/static-plugins/*/src/Resources/public/administration
-# dev
-/stage2/app/custom/static-plugins/*/var
 /stage2/app/custom/static-plugins/*/vendor

@@ -68,13 +68,13 @@ x-sw-defaults: &sw-defaults
     - "./stage3/app/config/services/custom.xml:/app/config/services/custom.xml"
     - "./stage3/app/config/packages:/app/config/packages"
     - "./stage3/app/config/services.xml:/app/config/services.xml"
-    - "./stage3/app/install.lock:/app/install.lock"
     - "./stage3/app/custom/static-plugins/.common:/app/custom/static-plugins/.common"
     - "./stageX/app/public/dev:/app/public/dev"
     - "./stageX/app/var/test/jwt:/app/var/test/jwt"
 {{#static-plugins}}
-    - "stageX_{{name}}_node_modules:/app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules"
-    - "stageX_{{name}}_public_administration:/app/custom/static-plugins/{{name}}/src/Resources/public/administration"
+    - "/app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules"
+    - "/app/custom/static-plugins/{{name}}/src/Resources/public/administration"
+    - "/app/custom/static-plugins/{{name}}/vendor"
 {{/static-plugins}}
 
 services:
@@ -217,7 +217,3 @@ volumes:
   mqdata:
   s3data:
   jwtdata:
-{{#static-plugins}}
-  stageX_{{name}}_public_administration:
-  stageX_{{name}}_node_modules:
-{{/static-plugins}}

@@ -8,10 +8,7 @@
             "name": "mistyfiky"
         }
     ],
-    "require": {
-        "shopware/core": "^6.4",
-        "shopware/administration": "^6.4"
-    },
+    "require": {},
     "type": "shopware-platform-plugin",
     "autoload": {
         "psr-4": {
@@ -37,8 +34,5 @@
         "supportLink": {
             "en-GB": "https://mistyfi.ky"
         }
-    },
-    "config": {
-        "lock": false
     }
 }

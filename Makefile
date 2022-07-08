@@ -36,7 +36,6 @@ help :
 	 && :
 .PHONY : help
 
-# FIXME find a better way to handle required dirs
 build : compose-runtime
 	docker compose --profile platform --profile tasks --profile tools build $$DOCKER_BUILD_OPTS
 .PHONY : build
@@ -75,7 +74,7 @@ prod dev :
 .PHONY : prod dev
 
 recreate : compose-runtime
-	docker compose --profile platform up -d --remove-orphans --force-recreate
+	docker compose --profile platform up -d --remove-orphans --force-recreate --renew-anon-volumes
 .PHONY : recreate
 
 jwt : compose-runtime permissions
@@ -115,7 +114,7 @@ Dockerfile compose.yml :
 dump.sql :
 	touch $@
 
-stageX/app/public/dev stageX/app/var/test/jwt:
+stageX/app/public/dev stageX/app/var/test/jwt :
 	mkdir -p $@
 
 compose-runtime : Dockerfile compose.yml dump.sql stageX/app/public/dev stageX/app/var/test/jwt
@@ -139,6 +138,7 @@ purge-shadow :
 	 stage1/app/config/services/custom.xml \
 	 stage2/app/custom/static-plugins/*/src/Resources/app/administration/node_modules \
 	 stage2/app/custom/static-plugins/*/src/Resources/public/administration \
+	 stage2/app/custom/static-plugins/*/vendor \
 	 && :
 .PHONY : purge-shadow
 
@@ -158,6 +158,8 @@ stageX/app : compose-runtime
 	for name in $$(yq '.static-plugins[].name' <demo.yml); do
 	 mkdir -p "$@/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules"
 	 docker compose cp -a "noop:/app/custom/static-plugins/$${name}/src/Resources/app/administration/node_modules" "$@/custom/static-plugins/$${name}/src/Resources/app/administration"
+	 mkdir -p "$@/custom/static-plugins/$${name}/vendor"
+	 docker compose cp -a "noop:/app/custom/static-plugins/$${name}/vendor" "$@/custom/static-plugins/$${name}"
 	done
 	docker compose rm -fs noop
 .PHONY : stageX/app
@@ -203,6 +205,10 @@ stage1/app :
 	  wget https://raw.githubusercontent.com/shopware/platform/v$${SHOPWARE_VERSION}/vendor-bin/$${n}/composer.json -O app/vendor-bin/$${n}/composer.json;
 	done
 .PHONY : stage1/app
+
+img-size : | compose.yml
+	@docker inspect $$(docker compose --profile platform config | yq '.services.shopware.image') -f '{{.Size}}' | numfmt --to iec
+.PHONY : img-size
 
 define tableflip
 ( >&2 printf '%s\n\n\t%s\n\n' $1 '(╯°□°)╯︵ ┻━┻' && exit 1)

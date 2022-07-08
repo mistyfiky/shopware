@@ -61,7 +61,7 @@ ARG GROUP_ID
 COPY --chown=${USER_ID}:${GROUP_ID} stage0/app /app
 
 
-FROM scratch AS stage0
+FROM scratch AS base
 COPY --from=stage0-root / /
 ENV PHP_INI_DIR="/usr/local/etc/php"
 ENTRYPOINT ["docker-php-entrypoint"]
@@ -87,14 +87,14 @@ ARG GROUP_ID
 COPY --chown=${USER_ID}:${GROUP_ID} stage1/app /app
 
 
-FROM stage0 AS stage1
+FROM base AS skeleton
 COPY --from=stage1-root / /
 
 
 # STAGE 2
 
 
-FROM stage1 AS dependencies
+FROM skeleton AS dependencies
 RUN jq 'del(.config.platform,.config."sort-packages",.scripts)' composer.json >composer.json.tmp && mv composer.json.tmp composer.json
 RUN for p in vendor-bin/*; do \
       jq 'del(.config.platform)' ${p}/composer.json >${p}/composer.json.tmp && mv ${p}/composer.json.tmp ${p}/composer.json; \
@@ -122,10 +122,31 @@ RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
 
 {{#static-plugins}}
 
-FROM node_modules-administration AS assets-{{slug}}
+FROM skeleton AS composer-{{slug}}
 ARG USER_ID
 ARG GROUP_ID
-COPY --chown=${USER_ID}:${GROUP_ID} stage2/app/custom/static-plugins/{{name}}/composer.json /app/custom/static-plugins/{{name}}/composer.json
+COPY --chown=${USER_ID}:${GROUP_ID} \
+     stage2/app/custom/static-plugins/{{name}}/composer.json \
+     stage2/app/custom/static-plugins/{{name}}/composer.lock \
+     /app/custom/static-plugins/{{name}}/
+
+
+FROM node_modules-administration AS node_modules-{{slug}}
+RUN mkdir -p custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules && \
+    if [ -f custom/static-plugins/{{name}}/src/Resources/app/administration/package-lock.json ]; then \
+      npm --prefix custom/static-plugins/{{name}}/src/Resources/app/administration clean-install; \
+    elif [ -f custom/static-plugins/{{name}}/src/Resources/app/administration/package.json ]; then \
+      npm --prefix custom/static-plugins/{{name}}/src/Resources/app/administration install; \
+    fi
+
+
+FROM composer-{{slug}} AS vendor-{{slug}}
+RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
+    composer -n -d custom/static-plugins/{{name}} install $([ 'prod' = "$APP_ENV" ] && echo '--no-dev')
+
+
+FROM node_modules-{{slug}} AS assets-{{slug}}
+COPY --from=composer-{{slug}} /app/custom/static-plugins/{{name}} /app/custom/static-plugins/{{name}}
 RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
     composer -n require $([ 'prod' = "$APP_ENV" ] && echo '--update-no-dev') $(jq -r '"\(.name):\(.version)"' custom/static-plugins/{{name}}/composer.json)
 COPY --chown=${USER_ID}:${GROUP_ID} stage2/app/custom/static-plugins/{{name}} /app/custom/static-plugins/{{name}}
@@ -134,21 +155,12 @@ ENV SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS="1"
 RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
     mkdir -p custom/static-plugins/{{name}}/src/Resources/public/administration && \
     if [ -n "$(jq -r 'select(.{{name}}.administration.entryFilePath != null)' var/plugins.json)" ]; then \
-      if [ -f custom/static-plugins/{{name}}/src/Resources/app/administration/package-lock.json ]; then \
-        npm --prefix custom/static-plugins/{{name}}/src/Resources/app/administration clean-install; \
-      elif [ -f custom/static-plugins/{{name}}/src/Resources/app/administration/package.json ]; then \
-        npm --prefix custom/static-plugins/{{name}}/src/Resources/app/administration install; \
-      fi; \
       npm --prefix vendor/shopware/administration/Resources/app/administration run build; \
     fi
 
-
-FROM assets-{{slug}} AS node_modules-{{slug}}
-RUN mkdir -p custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
-
 {{/static-plugins}}
 
-FROM dependencies as plugins
+FROM dependencies AS plugins
 ARG USER_ID
 ARG GROUP_ID
 ARG SHOPWARE_COMPOSER_TOKEN
@@ -174,6 +186,7 @@ RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID}
 {{/composer-plugins}}
       && :
 RUN bin/ci bundle:dump
+RUN touch var/cache/opcache-preload.php install.lock
 
 {{#composer-plugins}}
 
@@ -193,16 +206,12 @@ RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
 
 FROM stage1-root AS stage2-root
 COPY --from=plugins /app/composer.json /app/composer.lock /app/
+COPY --from=plugins /app/custom/static-plugins /app/custom/static-plugins
+COPY --from=plugins /app/install.lock /app/install.lock
+COPY --from=plugins /app/var/cache/opcache-preload.php /app/var/cache/opcache-preload.php
+COPY --from=plugins /app/var/plugins.json /app/var/plugins.json
 COPY --from=plugins /app/vendor /app/vendor
 COPY --from=plugins /app/vendor-bin /app/vendor-bin
-{{#static-plugins}}
-COPY --from=plugins /app/custom/static-plugins/{{name}} /app/custom/static-plugins/{{name}}
-{{/static-plugins}}
-COPY --from=plugins /app/var/plugins.json /app/var/plugins.json
-
-
-FROM stage1 AS stage2
-COPY --from=stage2-root / /
 
 
 # STAGE 3
@@ -217,14 +226,10 @@ ARG GROUP_ID
 COPY --chown=${USER_ID}:${GROUP_ID} stage3/app /app
 
 
-FROM stage2 AS stage3
-COPY --from=stage3-root / /
-
-
 # STAGE X
 
 
-FROM stage0 AS base
+FROM base AS final
 COPY --from=stage3-root / /
 ENV DISABLE_EXTENSIONS="1" \
     BLUE_GREEN_DEPLOYMENT="0" \
@@ -237,10 +242,10 @@ ENV DISABLE_EXTENSIONS="1" \
     SHOPWARE_CDN_STRATEGY_DEFAULT="id"
 
 
-FROM base AS prod
+FROM final AS prod
 
 
-FROM base AS dev
+FROM final AS dev
 COPY --from=node-root / /
 RUN mkdir -p vendor/shopware/administration/Resources/app/administration/node_modules
 COPY --from=node_modules-administration \
@@ -251,6 +256,10 @@ RUN mkdir -p custom/static-plugins/{{name}}/src/Resources/app/administration/nod
 COPY --from=node_modules-{{slug}} \
      /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules \
      /app/custom/static-plugins/{{name}}/src/Resources/app/administration/node_modules
+RUN mkdir -p custom/static-plugins/{{name}}/vendor
+COPY --from=vendor-{{slug}} \
+     /app/custom/static-plugins/{{name}}/vendor \
+     /app/custom/static-plugins/{{name}}/vendor
 {{/static-plugins}}
 {{#composer-plugins}}
 RUN mkdir -p vendor/{{package}}/src/Resources/app/administration/node_modules
