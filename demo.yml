@@ -6,5 +6,5 @@ composer-plugins:
 - slug: froshtools
   name: FroshTools
   package: store.shopware.com/froshtools
-  version: 0.1.7
+  version: 0.2.1
 ---

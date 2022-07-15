@@ -1,0 +1,136 @@
+version: "3.8"
+
+x-sw-defaults: &sw-defaults
+  build:
+    context: .
+    dockerfile: "Dockerfile"
+    args:
+      APP_ENV: "${APP_ENV?}"
+      SHOPWARE_COMPOSER_TOKEN: "${SHOPWARE_COMPOSER_TOKEN?}"
+      USER_ID: "${USER_ID?}"
+      GROUP_ID: "${GROUP_ID?}"
+  depends_on:
+    - "redis"
+    - "mysql"
+    - "rabbitmq"
+    - "minio"
+    - "mailhog"
+  environment:
+    REDIS_SESSION_DSN: "tcp://redis:6379/1"
+    REDIS_CACHE_DSN: "redis://redis:6379/2"
+    REDIS_LOCK_DSN: "redis://redis:6379/3"
+    REDIS_NUMBER_DSN: "redis://redis:6379/4"
+    RABBITMQ_DSN: "amqp://user:password@rabbitmq:5672/%2F"
+    S3_URL: "http://localhost:9000/shopware"
+    S3_BUCKET: "shopware"
+    S3_REGION: "local"
+    S3_ENDPOINT: "http://minio:9000"
+    S3_ACCESS_KEY: "user"
+    S3_SECRET_KEY: "password"
+    APP_URL: "http://localhost:8000"
+    DATABASE_URL: "mysql://user:password@mysql:3306/shopware"
+    MAILER_URL: "smtp://mailhog:1025"
+    APP_SECRET: "def0000038180dd6c4c4f8dde634d596f339cfc983efba7c00ecc69d7c17212a82802f8efc96aa655fde68771b809f364d2ac9f34ee16f71aa4b40fdf13000b8edcfa281"
+    INSTANCE_ID: "OZv3IMXVJkrNdXsoyBGYKRcvyaMlYCCh"
+    PHP_IDE_CONFIG: "serverName=localhost"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  image: "ghcr.io/mistyfiky/shopware-${APP_ENV?}:latest"
+  volumes:
+    - "jwtdata:/app/config/jwt"
+    - "testdata:/app/var/test"
+    - "./app/custom/plugins/.common:/app/custom/plugins/.common"
+{{#static-plugins}}
+    - "./app/custom/plugins/{{name}}:/app/custom/plugins/{{name}}"
+    - "/app/custom/plugins/{{name}}/src/Resources/app/administration/node_modules"
+    - "/app/custom/plugins/{{name}}/src/Resources/public/administration"
+    - "/app/custom/plugins/{{name}}/var"
+    - "/app/custom/plugins/{{name}}/vendor"
+{{/static-plugins}}
+
+x-cli-defaults: &cli-defaults
+  init: true
+  stop_signal: "SIGTERM"
+
+services:
+
+  redis:
+    image: "redis:7.0.0"
+    volumes:
+      - "redisdata:/data"
+
+  mysql:
+    environment:
+      MYSQL_ROOT_PASSWORD: "password"
+      MYSQL_USER: "user"
+      MYSQL_PASSWORD: "password"
+      MYSQL_DATABASE: "shopware"
+    image: "mysql:8.0.29"
+    ports:
+      - "4406:3306"
+    volumes:
+      - "mysqldata:/var/lib/mysql"
+      - "./.docker/mysql/grant.sql:/docker-entrypoint-initdb.d/grant.sql"
+      - "./dump.sql:/docker-entrypoint-initdb.d/dump.sql"
+
+  rabbitmq:
+    environment:
+      RABBITMQ_DEFAULT_USER: "user"
+      RABBITMQ_DEFAULT_PASS: "password"
+    hostname: "rabbitmq"
+    image: "rabbitmq:3.10.0-management"
+    ports:
+      - "15672:15672"
+    volumes:
+      - "rabbitmqdata:/var/lib/rabbitmq"
+
+  minio:
+    environment:
+      MINIO_ROOT_USER: "user"
+      MINIO_ROOT_PASSWORD: "password"
+      MINIO_DEFAULT_BUCKETS: "shopware:public"
+    image: "bitnami/minio:2022.5.8"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - "miniodata:/data"
+
+  mailhog:
+    image: "mailhog/mailhog:v1.0.1"
+    ports:
+      - "8025:8025"
+
+  shopware:
+    <<: *sw-defaults
+
+  web:
+    depends_on:
+      - "shopware"
+    environment:
+      NGINX_FASTCGI_PASS: "shopware:9000"
+    image: "nginx:1.21.6"
+    ports:
+      - "8000:80"
+    volumes:
+      - "./.docker/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro"
+
+  consumer:
+    <<: *sw-defaults
+    <<: *cli-defaults
+    command: "bin/console -n messenger:consume default --time-limit=60 --memory-limit=128M -vv"
+    restart: "unless-stopped"
+
+  task-runner:
+    <<: *sw-defaults
+    <<: *cli-defaults
+    command: "bin/console -n scheduled-task:run --time-limit=60 --memory-limit=128M"
+    restart: "unless-stopped"
+
+volumes:
+  redisdata:
+  mysqldata:
+  rabbitmqdata:
+  miniodata:
+  jwtdata:
+  testdata:

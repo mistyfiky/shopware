@@ -1,18 +1,16 @@
-/stageX
+/dump_*.sql
 /.env
 /compose.yml
-/compose.ide.dev.yml
 /Dockerfile
 /dump.sql
-/dump_*.sql
-/stage2/app/custom/static-plugins/*/var
+# index
+/app/public/
+/app/src/
+/app/vendor/
+/app/composer.json
+/app/composer.lock
 # shadow
-/stage1/app/config/jwt
-/stage1/app/config/packages
-/stage1/app/bin/install.sh
-/stage1/app/bin/update.sh
-/stage1/app/bin/wait-for-it.sh
-/stage1/app/config/services/custom.xml
-/stage2/app/custom/static-plugins/*/src/Resources/app/administration/node_modules
-/stage2/app/custom/static-plugins/*/src/Resources/public/administration
-/stage2/app/custom/static-plugins/*/vendor
+/app/custom/plugins/*/src/Resources/app/administration/node_modules/
+/app/custom/plugins/*/src/Resources/public/administration/
+/app/custom/plugins/*/var/
+/app/custom/plugins/*/vendor/

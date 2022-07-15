@@ -1,0 +1,7 @@
+includes:
+	- '../.common/phpstan.neon'
+
+parameters:
+	paths:
+		- 'src'
+		- 'tests'

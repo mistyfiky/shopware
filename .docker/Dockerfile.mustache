@@ -1,0 +1,269 @@
+# syntax=docker/dockerfile:1.3
+
+ARG PHP_VERSION=8.1.7
+ARG PHP_EXT_INSTALLER_VERSION=1.5.25
+ARG NODE_VERSION=16.15.0
+ARG COMPOSER_VERSION=2.3.7
+ARG JQ_VERSION=1.6
+ARG SHOPWARE_VERSION=6.4.11.1
+ARG APP_ENV=dev
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+ARG SHOPWARE_COMPOSER_TOKEN
+
+
+FROM php:${PHP_VERSION}-fpm-bullseye AS php-base
+ARG PHP_EXT_INSTALLER_VERSION
+ADD https://github.com/mlocati/docker-php-extension-installer/releases/download/${PHP_EXT_INSTALLER_VERSION}/install-php-extensions /usr/local/bin/install-php-extensions
+RUN chmod +x /usr/local/bin/install-php-extensions
+RUN IPE_GD_WITHOUTAVIF=1 install-php-extensions curl dom fileinfo gd iconv intl json libxml mbstring openssl pcre pdo pdo_mysql phar simplexml sodium xml zip zlib
+RUN install-php-extensions amqp apcu redis
+
+
+FROM php-base AS php-prod
+RUN install-php-extensions opcache
+RUN mv "${PHP_INI_DIR}/php.ini-production" "${PHP_INI_DIR}/php.ini"
+COPY .docker/php/performance.ini /usr/local/etc/php/conf.d/performance.ini
+
+
+FROM php-base AS php-dev
+RUN install-php-extensions xdebug
+RUN mv "${PHP_INI_DIR}/php.ini-development" "${PHP_INI_DIR}/php.ini"
+COPY .docker/php/xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
+
+
+FROM php-${APP_ENV} AS php
+COPY .docker/php/memory.ini /usr/local/etc/php/conf.d/memory.ini
+COPY .docker/php/session.ini /usr/local/etc/php/conf.d/session.ini
+
+
+FROM php as node
+ARG NODE_VERSION
+WORKDIR /usr/local/lib/nodejs
+RUN curl -Ls https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz | tar -xJ --strip-components 1 --no-same-owner
+
+
+FROM scratch AS node-root
+COPY --from=node /usr/local/lib/nodejs /
+
+
+FROM php AS base
+ARG COMPOSER_VERSION
+RUN install-php-extensions @composer-${COMPOSER_VERSION}
+ARG JQ_VERSION
+ADD https://github.com/stedolan/jq/releases/download/jq-${JQ_VERSION}/jq-linux64 /usr/local/bin/jq
+RUN chmod +x /usr/local/bin/jq
+ARG USER_ID
+ARG GROUP_ID
+RUN groupadd -g ${GROUP_ID} app && useradd -u ${USER_ID} -g ${GROUP_ID} -m app
+WORKDIR /app
+RUN chown ${USER_ID}:${GROUP_ID} /app
+USER ${USER_ID}:${GROUP_ID}
+ARG APP_ENV
+ENV APP_ENV="${APP_ENV}" \
+    APP_DEBUG="0" \
+    COMPOSER_PLUGIN_LOADER="1" \
+    PROJECT_ROOT="/app"
+
+
+FROM base as development
+ARG SHOPWARE_VERSION
+RUN curl -Ls https://github.com/shopware/development/archive/refs/tags/v${SHOPWARE_VERSION}.tar.gz | tar -xz --strip-components 1 --no-same-owner
+RUN mkdir var
+RUN mkdir var/test
+RUN touch .env
+RUN jq 'del(.config.platform,.config."sort-packages",.scripts)' composer.json >composer.json.tmp && mv composer.json.tmp composer.json
+ARG USER_ID
+ARG GROUP_ID
+ARG PHP_VERSION
+RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
+    composer -n require --no-install "php:${PHP_VERSION}" && \
+    composer -n install $([ 'prod' = "$APP_ENV" ] && echo '--no-dev')
+
+
+FROM development AS administration
+COPY --from=node-root / /
+ARG USER_ID
+ARG GROUP_ID
+ENV PUPPETEER_SKIP_DOWNLOAD="1"
+RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
+    npm clean-install --prefix vendor/shopware/platform/src/Administration/Resources/app/administration
+RUN bin/console -n bundle:dump
+ENV DISABLE_ADMIN_COMPILATION_TYPECHECK="1"
+RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
+    npm run --prefix vendor/shopware/platform/src/Administration/Resources/app/administration build
+
+
+FROM development AS platform
+RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
+    composer -n -d vendor/shopware/platform install
+
+{{#static-plugins}}
+
+FROM development AS vendor-{{slug}}
+ARG USER_ID
+ARG GROUP_ID
+RUN mkdir /app/custom/plugins/{{name}}
+COPY --chown=${USER_ID}:${GROUP_ID} app/custom/plugins/{{name}}/composer.json /app/custom/plugins/{{name}}/
+RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
+    composer -n -d custom/plugins/{{name}} dump-autoload --dev && \
+    touch custom/plugins/{{name}}/vendor/composer/InstalledVersions.php
+
+
+FROM development AS node_modules-{{slug}}
+RUN mkdir -p custom/plugins/{{name}}/src/Resources/app/administration
+ARG USER_ID
+ARG GROUP_ID
+COPY --chown=${USER_ID}:${GROUP_ID} \
+     app/custom/plugins/{{name}}/src/Resources/app/administration/package.json* \
+     app/custom/plugins/{{name}}/src/Resources/app/administration/package-lock.json* \
+     /app/custom/plugins/{{name}}/src/Resources/app/administration/
+RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
+    mkdir -p custom/plugins/{{name}}/src/Resources/app/administration/node_modules && \
+    if [ -f custom/plugins/{{name}}/src/Resources/app/administration/package-lock.json ]; then \
+      npm clean-install --prefix custom/plugins/{{name}}/src/Resources/app/administration; \
+    elif [ -f custom/plugins/{{name}}/src/Resources/app/administration/package.json ]; then \
+      npm install --prefix custom/plugins/{{name}}/src/Resources/app/administration; \
+    fi
+
+
+FROM administration AS administration-{{slug}}
+ARG USER_ID
+ARG GROUP_ID
+COPY --chown=${USER_ID}:${GROUP_ID} app/custom/plugins/{{name}} /app/custom/plugins/{{name}}
+RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
+    composer -n require $([ 'prod' = "$APP_ENV" ] && echo '--update-no-dev') $(jq -r '"\(.name):\(.version)"' custom/plugins/{{name}}/composer.json)
+RUN bin/console -n bundle:dump
+RUN mkdir -p custom/plugins/{{name}}/src/Resources/app/administration
+COPY --from=node_modules-{{slug}} --chown=${USER_ID}:${GROUP_ID} \
+     /app/custom/plugins/{{name}}/src/Resources/app/administration/node_modules \
+     /app/custom/plugins/{{name}}/src/Resources/app/administration/node_modules
+ENV SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS="1"
+RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
+    npm run --prefix vendor/shopware/platform/src/Administration/Resources/app/administration build
+
+
+FROM development AS plugin-{{slug}}
+ARG USER_ID
+ARG GROUP_ID
+COPY --chown=${USER_ID}:${GROUP_ID} app/custom/plugins/{{name}} /app/custom/plugins/{{name}}
+RUN mkdir -p custom/plugins/{{name}}/src/Resources/app/administration/node_modules
+COPY --from=administration-{{slug}} --chown=${USER_ID}:${GROUP_ID} \
+     /app/custom/plugins/{{name}}/src/Resources/public/administration \
+     /app/custom/plugins/{{name}}/src/Resources/public/administration
+RUN mkdir custom/plugins/{{name}}/var
+RUN mkdir custom/plugins/{{name}}/vendor
+
+{{/static-plugins}}
+
+FROM development AS dependencies
+ARG USER_ID
+ARG GROUP_ID
+COPY --from=administration --chown=${USER_ID}:${GROUP_ID} \
+     /app/vendor/shopware/platform/src/Administration/Resources/public \
+     /app/vendor/shopware/platform/src/Administration/Resources/public
+ARG SHOPWARE_COMPOSER_TOKEN
+RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
+    if [ -n "${SHOPWARE_COMPOSER_TOKEN}" ]; then \
+      composer -n config repositories.shopware-packages '{"type": "composer", "url": "https://packages.shopware.com"}'; \
+      composer -n config bearer.packages.shopware.com "${SHOPWARE_COMPOSER_TOKEN}"; \
+    fi
+{{#static-plugins}}
+COPY --from=plugin-{{slug}} --chown=${USER_ID}:${GROUP_ID} /app/custom/plugins/{{name}} /app/custom/plugins/{{name}}
+{{/static-plugins}}
+RUN --mount=type=cache,target=/home/app/.composer,uid=${USER_ID},gid=${GROUP_ID} \
+    composer -n require $([ 'prod' = "$APP_ENV" ] && echo '--update-no-dev') \
+{{#static-plugins}}
+     $(jq -r '"\(.name):\(.version)"' custom/plugins/{{name}}/composer.json) \
+{{/static-plugins}}
+{{#composer-plugins}}
+    {{package}}:{{version}} \
+{{/composer-plugins}}
+     && :
+
+
+FROM dependencies AS bundle-dump
+RUN bin/console -n bundle:dump
+
+{{#composer-plugins}}
+
+FROM dependencies AS node_modules-{{slug}}
+COPY --from=node-root / /
+RUN --mount=type=cache,target=/home/app/.npm,uid=${USER_ID},gid=${GROUP_ID} \
+    mkdir -p vendor/{{package}}/src/Resources/app/administration/node_modules && \
+    if [ -f vendor/{{package}}/src/Resources/app/administration/package-lock.json ]; then \
+      npm clean-install --prefix vendor/{{package}}/src/Resources/app/administration; \
+    elif [ -f vendor/{{package}}/src/Resources/app/administration/package.json ]; then \
+      npm install --prefix vendor/{{package}}/src/Resources/app/administration; \
+    fi
+
+{{/composer-plugins}}
+
+FROM dependencies AS final-base
+COPY --chown=${USER_ID}:${GROUP_ID} app/bin /app/bin
+COPY --chown=${USER_ID}:${GROUP_ID} app/config /app/config
+COPY --chown=${USER_ID}:${GROUP_ID} app/custom/plugins/.common /app/custom/plugins/.common
+COPY --from=bundle-dump /app/var/plugins.json /app/var/plugins.json
+
+
+FROM final-base AS final-prod
+
+
+FROM final-base AS final-dev
+COPY --from=node-root / /
+ARG USER_ID
+ARG GROUP_ID
+COPY --from=platform --chown=${USER_ID}:${GROUP_ID} \
+     /app/vendor/shopware/platform/vendor \
+     /app/vendor/shopware/platform/vendor
+COPY --from=platform --chown=${USER_ID}:${GROUP_ID} \
+     /app/vendor/shopware/platform/vendor-bin \
+     /app/vendor/shopware/platform/vendor-bin
+COPY --from=administration --chown=${USER_ID}:${GROUP_ID} \
+     /app/vendor/shopware/platform/src/Administration/Resources/app/administration/node_modules \
+     /app/vendor/shopware/platform/src/Administration/Resources/app/administration/node_modules
+{{#static-plugins}}
+COPY --from=vendor-{{slug}} --chown=${USER_ID}:${GROUP_ID} \
+     /app/custom/plugins/{{name}}/vendor \
+     /app/custom/plugins/{{name}}/vendor
+RUN mkdir -p custom/plugins/{{name}}/src/Resources/app/administration
+COPY --from=node_modules-{{slug}} --chown=${USER_ID}:${GROUP_ID} \
+     /app/custom/plugins/{{name}}/src/Resources/app/administration/node_modules \
+     /app/custom/plugins/{{name}}/src/Resources/app/administration/node_modules
+{{/static-plugins}}
+{{#composer-plugins}}
+RUN mkdir -p vendor/{{package}}/src/Resources/app/administration
+COPY --from=node_modules-{{slug}} --chown=${USER_ID}:${GROUP_ID} \
+     /app/vendor/{{package}}/src/Resources/app/administration/node_modules \
+     /app/vendor/{{package}}/src/Resources/app/administration/node_modules
+{{/composer-plugins}}
+
+
+FROM final-${APP_ENV} AS final
+
+
+FROM scratch
+COPY --from=final / /
+ENV PHP_INI_DIR="/usr/local/etc/php"
+ENTRYPOINT ["docker-php-entrypoint"]
+WORKDIR /app
+STOPSIGNAL SIGQUIT
+EXPOSE 9000
+CMD ["php-fpm"]
+ARG USER_ID
+ARG GROUP_ID
+USER ${USER_ID}:${GROUP_ID}
+ARG APP_ENV
+ENV APP_ENV="${APP_ENV}" \
+    APP_DEBUG="0" \
+    COMPOSER_PLUGIN_LOADER="1" \
+    PROJECT_ROOT="/app" \
+    DISABLE_EXTENSIONS="1" \
+    BLUE_GREEN_DEPLOYMENT="0" \
+    SHOPWARE_ES_HOSTS="" \
+    SHOPWARE_ES_ENABLED="0" \
+    SHOPWARE_ES_INDEXING_ENABLED="0" \
+    SHOPWARE_ES_INDEX_PREFIX="" \
+    SHOPWARE_HTTP_CACHE_ENABLED="1" \
+    SHOPWARE_HTTP_DEFAULT_TTL="7200" \
+    SHOPWARE_CDN_STRATEGY_DEFAULT="id"
