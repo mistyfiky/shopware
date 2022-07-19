@@ -6,6 +6,7 @@ CORE_ROOT ?= $(PLATFORM_ROOT)/src/Core
 ADMINISTRATION_ROOT ?= $(PLATFORM_ROOT)/src/Administration
 
 clean :
+	rm -fr src/Resources/app/administration/test/e2e/node_modules
 	rm -fr var
 .PHONY : clean
 
@@ -53,3 +54,10 @@ eslint-fix :
 
 checks check : ecs eslint phpstan phpunit
 .PHONY : checks
+
+src/Resources/app/administration/test/e2e/node_modules :
+	npm clean-install --prefix $(dir $@)
+
+cypress : | src/Resources/app/administration/test/e2e/node_modules
+	npm run --prefix $(dir $(firstword $|)) open
+.PHONY : cypress

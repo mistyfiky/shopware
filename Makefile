@@ -21,8 +21,8 @@ help :
 urls : export BASH_ENV =
 urls :
 	@>&2 printf '%20s %-30s%s\n' \
-	 'admin' 'http://localhost:8000/admin' 'admin : password' \
-	 'admin-watch' 'http://localhost:8080' 'admin : password' \
+	 'admin' 'http://localhost:8000/admin' 'admin : shopware' \
+	 'admin-watch' 'http://localhost:8080' 'admin : shopware' \
 	 'redis' '-' '- : -' \
 	 'mysql' 'mysql://localhost:4406' 'user : password' \
 	 'rabbitmq' 'http://localhost:15672' 'user : password' \
@@ -63,6 +63,7 @@ purge : down clean
  	 && :
 	rm -fr \
 	 app/custom/plugins/*/src/Resources/app/administration/node_modules/ \
+	 app/custom/plugins/*/src/Resources/app/administration/test/e2e/node_modules/ \
 	 app/custom/plugins/*/src/Resources/public/administration/ \
  	 app/custom/plugins/*/var/ \
  	 app/custom/plugins/*/vendor/ \
@@ -103,7 +104,7 @@ install : compose-runtime
      -e SHOP_EMAIL="admin@localhost" \
      -e SHOP_LOCALE="en-GB" \
      -e SHOP_CURRENCY="EUR" \
-     -e ADMIN_PASSWORD="password" \
+     -e ADMIN_PASSWORD="shopware" \
 	 shopware bin/wait-for-it.sh -s -t 60 -h mysql -p 3306 -- bin/install.sh
 .PHONY : install
 

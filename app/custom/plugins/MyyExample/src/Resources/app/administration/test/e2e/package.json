@@ -1,0 +1,10 @@
+{
+  "name": "e2e",
+  "scripts": {
+    "open": "node_modules/.bin/cypress open -C ../../../../../../../.common/cypress.json"
+  },
+  "dependencies": {
+    "@shopware-ag/e2e-testsuite-platform": "^3.0.0",
+    "cypress": "^9.7.0"
+  }
+}

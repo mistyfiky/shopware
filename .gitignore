@@ -11,6 +11,7 @@
 /app/composer.lock
 # shadow
 /app/custom/plugins/*/src/Resources/app/administration/node_modules/
+/app/custom/plugins/*/src/Resources/app/administration/test/e2e/node_modules/
 /app/custom/plugins/*/src/Resources/public/administration/
 /app/custom/plugins/*/var/
 /app/custom/plugins/*/vendor/
