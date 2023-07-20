@@ -1,15 +1,17 @@
 {
-    "name": "shopware/production",
+    "name": "mistyfiky/shopware",
     "license": "MIT",
     "type": "project",
     "require": {
         "composer-runtime-api": "^2.0",
         "shopware/administration": "~v6.5.0",
         "shopware/core": "~v6.5.0",
-        "shopware/elasticsearch": "~v6.5.0",
-        "shopware/storefront": "~v6.5.0",
         "symfony/flex": "~2",
         "symfony/runtime": "^5.0|^6.0"
+    },
+    "require-dev": {
+        "frosh/devenv-meta": "^0.2.0",
+        "shopware/dev-tools": "^1.0"
     },
     "repositories": [
         {
@@ -60,7 +62,8 @@
             "endpoint": [
                 "https://raw.githubusercontent.com/shopware/recipes/flex/main/index.json",
                 "flex://defaults"
-            ]
+            ],
+            "docker": false
         }
     }
 }
